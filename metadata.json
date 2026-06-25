@@ -1,0 +1,6 @@
+{
+  "name": "Kabro Sooq",
+  "description": "Une application web de petites annonces moderne et optimisée pour le marché tchadien (Grand Marché).",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

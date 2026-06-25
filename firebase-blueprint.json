@@ -1,0 +1,182 @@
+{
+  "entities": {
+    "userProfile": {
+      "title": "UserProfile",
+      "description": "User profile data stored in Firestore",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Unique user ID from Firebase Auth"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the user"
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user"
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "URL of user avatar"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["uid", "name", "email", "createdAt"]
+    },
+    "listing": {
+      "title": "Listing",
+      "description": "Classified advertisement listing details",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "price": {
+          "type": "number"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["Véhicules", "Immobilier", "Téléphones", "Emploi", "Services", "Animaux"]
+        },
+        "city": {
+          "type": "string",
+          "enum": ["N'Djaména", "Moundou", "Sarh", "Abéché", "Kélo", "Am Timan", "Doba", "Pala"]
+        },
+        "images": {
+          "type": "array",
+          "description": "List of image URLs"
+        },
+        "condition": {
+          "type": "string",
+          "enum": ["new", "excellent", "good", "used"]
+        },
+        "sellerId": {
+          "type": "string"
+        },
+        "sellerName": {
+          "type": "string"
+        },
+        "sellerPhone": {
+          "type": "string"
+        },
+        "sellerWhatsApp": {
+          "type": "string"
+        },
+        "sellerIsVerified": {
+          "type": "boolean"
+        },
+        "sellerResponseTime": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "sold", "archived"]
+        },
+        "viewsCount": {
+          "type": "number"
+        }
+      },
+      "required": ["id", "title", "description", "price", "category", "city", "sellerId", "sellerName", "createdAt", "status"]
+    },
+    "chat": {
+      "title": "Chat",
+      "description": "Chat metadata representing a conversation",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "listingId": {
+          "type": "string"
+        },
+        "listingTitle": {
+          "type": "string"
+        },
+        "listingPrice": {
+          "type": "number"
+        },
+        "listingImage": {
+          "type": "string"
+        },
+        "buyerId": {
+          "type": "string"
+        },
+        "buyerName": {
+          "type": "string"
+        },
+        "sellerId": {
+          "type": "string"
+        },
+        "sellerName": {
+          "type": "string"
+        },
+        "lastMessage": {
+          "type": "string"
+        },
+        "lastMessageAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "participantIds": {
+          "type": "array"
+        }
+      },
+      "required": ["id", "listingId", "buyerId", "sellerId", "participantIds"]
+    },
+    "message": {
+      "title": "Message",
+      "description": "Individual message inside a chat",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "senderId": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "senderId", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "userProfile",
+      "description": "User profiles"
+    },
+    "/listings/{listingId}": {
+      "schema": "listing",
+      "description": "Classified ad listings"
+    },
+    "/chats/{chatId}": {
+      "schema": "chat",
+      "description": "Chats"
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "message",
+      "description": "Messages inside a chat"
+    }
+  }
+}

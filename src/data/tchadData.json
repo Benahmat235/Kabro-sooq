@@ -1,0 +1,224 @@
+{
+  "tchad": {
+    "regions": [
+      {
+        "nom": "Barh El Gazel",
+        "chef_lieu": "Moussoro"
+      },
+      {
+        "nom": "Batha",
+        "chef_lieu": "Ati"
+      },
+      {
+        "nom": "Borkou",
+        "chef_lieu": "Faya-Largeau"
+      },
+      {
+        "nom": "Chari-Baguirmi",
+        "chef_lieu": "Massenya"
+      },
+      {
+        "nom": "Ennedi Est",
+        "chef_lieu": "Amdjarass"
+      },
+      {
+        "nom": "Ennedi Ouest",
+        "chef_lieu": "Fada"
+      },
+      {
+        "nom": "Guéra",
+        "chef_lieu": "Mongo"
+      },
+      {
+        "nom": "Hadjer-Lamis",
+        "chef_lieu": "Massakory"
+      },
+      {
+        "nom": "Kanem",
+        "chef_lieu": "Mao"
+      },
+      {
+        "nom": "Lac",
+        "chef_lieu": "Bol"
+      },
+      {
+        "nom": "Logone Occidental",
+        "chef_lieu": "Moundou"
+      },
+      {
+        "nom": "Logone Oriental",
+        "chef_lieu": "Doba"
+      },
+      {
+        "nom": "Mandoul",
+        "chef_lieu": "Koumra"
+      },
+      {
+        "nom": "Mayo-Kebbi Est",
+        "chef_lieu": "Bongor"
+      },
+      {
+        "nom": "Mayo-Kebbi Ouest",
+        "chef_lieu": "Pala"
+      },
+      {
+        "nom": "Moyen-Chari",
+        "chef_lieu": "Sarh"
+      },
+      {
+        "nom": "Ouaddaï",
+        "chef_lieu": "Abéché"
+      },
+      {
+        "nom": "Salamat",
+        "chef_lieu": "Am Timan"
+      },
+      {
+        "nom": "Sila",
+        "chef_lieu": "Goz Beïda"
+      },
+      {
+        "nom": "Tandjilé",
+        "chef_lieu": "Laï"
+      },
+      {
+        "nom": "Tibesti",
+        "chef_lieu": "Bardaï"
+      },
+      {
+        "nom": "Ville de N'Djaména",
+        "chef_lieu": "N'Djaména"
+      },
+      {
+        "nom": "Wadi Fira",
+        "chef_lieu": "Biltine"
+      }
+    ],
+    "ndjamena": {
+      "arrondissements": [
+        {
+          "nom": "1er Arrondissement",
+          "quartiers": [
+            "Adré",
+            "Allaya",
+            "Amsinéné",
+            "Ardeb-Timan",
+            "Bouta-alwali",
+            "Djaali",
+            "Djougoulier",
+            "Ethiopie",
+            "Farcha",
+            "Guimeye",
+            "Karkandjeri",
+            "Madaga",
+            "Madjorio",
+            "Massil Abcoma",
+            "Milezi",
+            "Terde-glog",
+            "Zaraf"
+          ]
+        },
+        {
+          "nom": "2e Arrondissement",
+          "quartiers": [
+            "Bololo",
+            "Djambal Ngato",
+            "Goudji",
+            "Klémat",
+            "Mardjandaffack"
+          ]
+        },
+        {
+          "nom": "3e Arrondissement",
+          "quartiers": [
+            "Ambassatna",
+            "Ardep Djoumal",
+            "Djambalbahr",
+            "Gardolé 1",
+            "Kabalaye",
+            "Sabangali"
+          ]
+        },
+        {
+          "nom": "4e Arrondissement",
+          "quartiers": [
+            "Blabline",
+            "Naga I",
+            "Naga II",
+            "Repos I",
+            "Repos II"
+          ]
+        },
+        {
+          "nom": "5e Arrondissement",
+          "quartiers": [
+            "Am-Riguebé",
+            "Champ de Fils",
+            "Ridina"
+          ]
+        },
+        {
+          "nom": "6e Arrondissement",
+          "quartiers": [
+            "Moursal",
+            "Paris-Congo"
+          ]
+        },
+        {
+          "nom": "7e Arrondissement",
+          "quartiers": [
+            "Ambatta",
+            "Amtoukougne",
+            "Atrone",
+            "Boutalbagara",
+            "Chagoua",
+            "Dembé",
+            "Gassi",
+            "Habena",
+            "Kilwiti",
+            "Kourmanadji"
+          ]
+        },
+        {
+          "nom": "8e Arrondissement",
+          "quartiers": [
+            "Angabo",
+            "Diguel",
+            "Machaga",
+            "Ndjari",
+            "Zaffaye-Est",
+            "Zaffaye-Ouest"
+          ]
+        },
+        {
+          "nom": "9e Arrondissement",
+          "quartiers": [
+            "Digangali",
+            "Gardolé 2",
+            "Kabé",
+            "Ngoumna",
+            "Ngueli",
+            "Toukra",
+            "Toukra Massa",
+            "Walia"
+          ]
+        },
+        {
+          "nom": "10e Arrondissement",
+          "quartiers": [
+            "Achawayil",
+            "Djaballiro",
+            "Fondoré",
+            "Gaoui",
+            "Goudji-Charaffa",
+            "Gozator",
+            "Hillé Houdjaj",
+            "Lamadji",
+            "Ouroula",
+            "Sadjeri"
+          ]
+        }
+      ]
+    }
+  }
+}

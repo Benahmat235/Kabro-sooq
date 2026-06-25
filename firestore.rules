@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloudfirestore {
+  match /databases/{database}/documents {
+
+    // 1. Global safety net (Default-deny catch-all)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Entity Validation Helpers ---
+    function isValidUserProfile(data) {
+      return isSignedIn() 
+        && data.get('uid', request.auth.uid) == request.auth.uid
+        && data.get('name', 'Utilisateur') is string && data.get('name', 'Utilisateur').size() > 0 && data.get('name', 'Utilisateur').size() <= 100
+        && data.get('avatarUrl', '') is string && data.get('avatarUrl', '').size() <= 1000
+        && data.get('savedListings', []) is list;
+    }
+
+    function isValidListing(data) {
+      return isSignedIn() 
+        && data.get('id', '') is string && data.get('id', '').size() <= 128
+        && data.get('title', 'Title') is string && data.get('title', 'Title').size() > 0 && data.get('title', 'Title').size() <= 150
+        && data.get('description', '') is string && data.get('description', '').size() <= 3000
+        && data.get('price', 0) is number && data.get('price', 0) >= 0
+        && data.get('category', 'Category') is string && data.get('category', 'Category').size() <= 50
+        && data.get('city', 'City') is string && data.get('city', 'City').size() <= 50
+        && data.get('sellerId', request.auth.uid) == request.auth.uid
+        && data.get('sellerName', 'Seller') is string && data.get('sellerName', 'Seller').size() <= 150
+        && data.get('status', 'active') in ['active', 'sold', 'archived'];
+    }
+
+    // --- Collection Match Blocks ---
+
+    // USERS COLLECTION
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidUserProfile(incoming());
+      allow delete: if false;
+    }
+
+    // LISTINGS COLLECTION (Public Read, Protected Write)
+    match /listings/{listingId} {
+      allow read, list: if true;
+      allow create: if isSignedIn() 
+        && isValidListing(incoming()) 
+        && incoming().createdAt is string 
+        && incoming().createdAt.size() >= 19 
+        && incoming().createdAt.size() <= 30;
+      allow update: if isSignedIn() && (
+        // Action: Seller edits details
+        (isOwner(existing().sellerId) 
+          && isValidListing(incoming()) 
+          && incoming().sellerId == existing().sellerId 
+          && incoming().createdAt == existing().createdAt 
+          && incoming().diff(existing()).affectedKeys().hasAny(['title', 'description', 'price', 'category', 'city', 'arrondissement', 'quartier', 'images', 'condition', 'sellerPhone', 'sellerWhatsApp', 'status', 'updatedAt']))
+        ||
+        // Action: Visitor increments views
+        (incoming().diff(existing()).affectedKeys().hasOnly(['viewsCount']) 
+          && incoming().viewsCount == existing().viewsCount + 1)
+      );
+      allow delete: if isSignedIn() && isOwner(existing().sellerId);
+    }
+
+    // CHATS COLLECTION (Participant-only access)
+    match /chats/{chatId} {
+      allow read, list: if isSignedIn() 
+        && existing().get('participantIds', []).hasAny([request.auth.uid]);
+      allow create: if isSignedIn() 
+        && (request.auth.uid == incoming().get('buyerId', '') || request.auth.uid == incoming().get('sellerId', ''))
+        && incoming().get('participantIds', []).hasAll([request.auth.uid])
+        && incoming().get('lastMessageAt', '') is string 
+        && incoming().get('lastMessageAt', '').size() >= 19 
+        && incoming().get('lastMessageAt', '').size() <= 30;
+      allow update: if isSignedIn() 
+        && existing().get('participantIds', []).hasAny([request.auth.uid])
+        && incoming().diff(existing()).affectedKeys().hasAny(['lastMessage', 'lastMessageAt', 'unreadCount']);
+      allow delete: if false;
+
+      // MESSAGES SUBCOLLECTION
+      match /messages/{messageId} {
+        allow read, list: if isSignedIn() 
+          && get(/databases/$(database)/documents/chats/$(chatId)).data.get('participantIds', []).hasAny([request.auth.uid]);
+        allow create: if isSignedIn() 
+          && incoming().get('senderId', '') == request.auth.uid
+          && get(/databases/$(database)/documents/chats/$(chatId)).data.get('participantIds', []).hasAny([request.auth.uid])
+          && incoming().get('createdAt', '') is string 
+          && incoming().get('createdAt', '').size() >= 19 
+          && incoming().get('createdAt', '').size() <= 30;
+        allow update, delete: if false;
+      }
+    }
+  }
+}
