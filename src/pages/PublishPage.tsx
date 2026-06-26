@@ -3,9 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { getTranslation } from '../utils/translations';
 import { CITIES, CATEGORIES } from '../data/mockData';
+import { toast } from 'react-hot-toast';
 import { CategoryType, CityType, ConditionType, isCategoryType, isCityType, isConditionType } from '../types';
-import { loginWithGoogle } from '../lib/firebase';
+import { loginWithGoogle, uploadListingImage } from '../lib/firebase';
 import { motion } from 'motion/react';
+
+interface ImageItem {
+  id: string;
+  preview: string;
+  file?: File;
+}
 import tchadData from '../data/tchadData.json';
 import { 
   Camera, Plus, Check, ChevronLeft, ChevronRight, 
@@ -54,8 +61,8 @@ export const PublishPage: React.FC = () => {
     }
   };
 
-  // Photos State (list of base64 images)
-  const [images, setImages] = useState<string[]>([]);
+  // Photos State (list of ImageItem)
+  const [images, setImages] = useState<ImageItem[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -107,7 +114,12 @@ export const PublishPage: React.FC = () => {
       reader.onload = (e) => {
         const result = e.target?.result;
         if (typeof result === 'string') {
-          setImages(prev => [...prev, result]);
+          const newItem: ImageItem = {
+            id: `${Date.now()}-${Math.random()}`,
+            preview: result,
+            file: file,
+          };
+          setImages(prev => [...prev, newItem]);
         }
       };
       reader.readAsDataURL(file);
@@ -115,10 +127,15 @@ export const PublishPage: React.FC = () => {
   };
 
   const handleAddPresetImage = (url: string) => {
-    if (images.includes(url)) {
-      setImages(prev => prev.filter(img => img !== url));
+    const isAlreadySelected = images.some(img => img.preview === url);
+    if (isAlreadySelected) {
+      setImages(prev => prev.filter(img => img.preview !== url));
     } else {
-      setImages(prev => [...prev, url]);
+      const newItem: ImageItem = {
+        id: `${Date.now()}-${Math.random()}`,
+        preview: url,
+      };
+      setImages(prev => [...prev, newItem]);
     }
   };
 
@@ -169,6 +186,16 @@ export const PublishPage: React.FC = () => {
 
     setLoading(true);
     try {
+      // Real-time file upload block to Firebase Storage
+      const uploadedImageUrls = await Promise.all(
+        images.map(async (item) => {
+          if (item.file && user) {
+            return await uploadListingImage(item.file, user.uid);
+          }
+          return item.preview; // It's already a preset url (e.g. Unsplash)
+        })
+      );
+
       await addListing({
         title,
         description,
@@ -177,16 +204,17 @@ export const PublishPage: React.FC = () => {
         city,
         arrondissement: city === "N'Djaména" ? selectedArrondissement : undefined,
         quartier: city === "N'Djaména" ? selectedQuartier : undefined,
-        images,
+        images: uploadedImageUrls,
         condition,
         sellerPhone,
         sellerWhatsApp: sellerWhatsApp || sellerPhone,
       });
-      alert(getTranslation(language, 'publishSuccess'));
+      toast.success(getTranslation(language, 'publishSuccess'));
       navigate('/');
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Une erreur s'est produite lors de la publication.";
       setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -439,7 +467,7 @@ export const PublishPage: React.FC = () => {
                 <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400 mb-2">Ou utilisez des images de test :</p>
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {PRESET_IMAGES.map((preset, idx) => {
-                    const isSelected = images.includes(preset);
+                    const isSelected = images.some(img => img.preview === preset);
                     return (
                       <button
                         key={idx}
@@ -465,7 +493,7 @@ export const PublishPage: React.FC = () => {
                   <div className="grid grid-cols-4 gap-3">
                     {images.map((img, idx) => (
                       <div key={idx} className="group relative h-20 rounded-xl overflow-hidden border border-gray-100 shadow-xs">
-                        <img src={img} className="h-full w-full object-cover" alt="Selected" referrerPolicy="no-referrer" />
+                        <img src={img.preview} className="h-full w-full object-cover" alt="Selected" referrerPolicy="no-referrer" />
                         <button
                           type="button"
                           onClick={() => handleRemoveImage(idx)}

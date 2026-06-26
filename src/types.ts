@@ -61,6 +61,7 @@ export interface Chat {
   lastMessageAt: string;
   participantIds: string[];
   unreadCount?: { [userId: string]: number };
+  typing?: { [userId: string]: boolean };
 }
 
 export interface Message {
@@ -68,6 +69,7 @@ export interface Message {
   senderId: string;
   text: string;
   createdAt: string;
+  seen?: boolean;
 }
 
 export interface WeatherInfo {

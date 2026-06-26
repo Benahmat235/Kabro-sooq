@@ -3,17 +3,18 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { getTranslation } from '../utils/translations';
 import { motion } from 'motion/react';
+import { toast } from 'react-hot-toast';
 import { 
   ArrowLeft, MapPin, Tag, Phone, MessageSquare, CheckCircle2, 
   Calendar, Eye, ChevronLeft, ChevronRight, Share2, Award, Clock, Heart, AlertTriangle
 } from 'lucide-react';
+import { ImageCarousel } from '../components/ImageCarousel';
 
 export const ListingDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { language, user, listings, loadingListings, startNewChat, savedListings, toggleFavorite } = useApp();
   
-  const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [isSharing, setIsSharing] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
 
@@ -85,7 +86,7 @@ export const ListingDetailPage: React.FC = () => {
 
   const handleStartChat = async () => {
     if (!user) {
-      alert(getTranslation(language, 'signInToPublish'));
+      toast.error(getTranslation(language, 'signInToPublish'));
       return;
     }
     setChatLoading(true);
@@ -95,7 +96,7 @@ export const ListingDetailPage: React.FC = () => {
       navigate('/messages');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Erreur lors de l'ouverture du chat.";
-      alert(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setChatLoading(false);
     }
@@ -129,55 +130,8 @@ export const ListingDetailPage: React.FC = () => {
       <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-xl flex flex-col md:flex-row">
         
         {/* Left Side: Photo Carousel */}
-        <div className="relative w-full md:w-1/2 bg-gray-950 flex flex-col justify-between shrink-0 h-[300px] sm:h-[400px] md:h-auto min-h-[380px]">
-          {/* Active Image */}
-          <div className="relative flex-1 flex items-center justify-center overflow-hidden">
-            <img 
-              src={imagesList[activeImageIdx]} 
-              alt={listing.title} 
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
-            />
-            
-            {/* Carousel navigation arrows */}
-            {imagesList.length > 1 && (
-              <>
-                <button 
-                  onClick={() => setActiveImageIdx(prev => prev === 0 ? imagesList.length - 1 : prev - 1)}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <button 
-                  onClick={() => setActiveImageIdx(prev => prev === imagesList.length - 1 ? 0 : prev + 1)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors"
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Premium visual thumbnails horizontal strip */}
-          {imagesList.length > 1 && (
-            <div className="absolute bottom-4 left-0 right-0 px-4">
-              <div className="mx-auto flex max-w-xs items-center justify-center space-x-2 rounded-2xl bg-black/55 backdrop-blur-md p-1.5 border border-white/10 shadow-lg">
-                {imagesList.map((img, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setActiveImageIdx(idx)}
-                    className={`relative h-10 w-14 overflow-hidden rounded-lg border-2 transition-all ${
-                      activeImageIdx === idx 
-                        ? 'border-orange-500 scale-105' 
-                        : 'border-transparent opacity-60 hover:opacity-100'
-                    }`}
-                  >
-                    <img src={img} className="h-full w-full object-cover" alt="" referrerPolicy="no-referrer" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="relative w-full md:w-1/2 bg-gray-950 flex flex-col justify-between shrink-0 h-[380px] sm:h-[450px] md:h-auto md:min-h-[480px]">
+          <ImageCarousel images={imagesList} title={listing.title} />
         </div>
 
         {/* Right Side: Detailed Info Panel */}
@@ -226,13 +180,7 @@ export const ListingDetailPage: React.FC = () => {
               </div>
               <div className="flex items-center space-x-2">
                 <button
-                  onClick={() => {
-                    if (!user) {
-                      alert("Veuillez vous connecter pour ajouter aux favoris.");
-                      return;
-                    }
-                    toggleFavorite(listing.id);
-                  }}
+                  onClick={() => toggleFavorite(listing.id)}
                   className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 hover:scale-105 active:scale-95 transition-transform shadow-sm"
                 >
                   <Heart 

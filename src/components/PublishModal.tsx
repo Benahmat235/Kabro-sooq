@@ -1,8 +1,17 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { getTranslation } from '../utils/translations';
-import { CITIES, CATEGORIES } from '../data/mockData';
+import { CATEGORIES } from '../data/mockData';
+import { toast } from 'react-hot-toast';
 import { CategoryType, CityType, ConditionType, isCategoryType, isCityType, isConditionType } from '../types';
+import { uploadListingImage } from '../lib/firebase';
+import tchadData from '../data/tchadData.json';
+
+interface ImageItem {
+  id: string;
+  preview: string;
+  file?: File;
+}
 import { 
   X, Camera, Plus, Check, ChevronLeft, ChevronRight, 
   UploadCloud, AlertCircle, Trash2 
@@ -13,7 +22,7 @@ interface PublishModalProps {
 }
 
 export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
-  const { language, addListing } = useApp();
+  const { language, addListing, user } = useApp();
   const [step, setStep] = useState(1);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,9 +34,35 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
   const [price, setPrice] = useState<number | ''>('');
   const [description, setDescription] = useState('');
   const [city, setCity] = useState<CityType>("N'Djaména");
+  const [selectedArrondissement, setSelectedArrondissement] = useState<string>(
+    tchadData.tchad.ndjamena.arrondissements[0].nom
+  );
+  const [selectedQuartier, setSelectedQuartier] = useState<string>(
+    tchadData.tchad.ndjamena.arrondissements[0].quartiers[0]
+  );
 
-  // Photos State (list of base64 images)
-  const [images, setImages] = useState<string[]>([]);
+  const availableQuartiers = React.useMemo(() => {
+    if (city !== "N'Djaména") return [];
+    const arrObj = tchadData.tchad.ndjamena.arrondissements.find(
+      arr => arr.nom === selectedArrondissement
+    );
+    return arrObj ? arrObj.quartiers : [];
+  }, [city, selectedArrondissement]);
+
+  const handleArrondissementChange = (arrName: string) => {
+    setSelectedArrondissement(arrName);
+    const arrObj = tchadData.tchad.ndjamena.arrondissements.find(
+      arr => arr.nom === arrName
+    );
+    if (arrObj && arrObj.quartiers.length > 0) {
+      setSelectedQuartier(arrObj.quartiers[0]);
+    } else {
+      setSelectedQuartier('');
+    }
+  };
+
+  // Photos State (list of ImageItem)
+  const [images, setImages] = useState<ImageItem[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -80,7 +115,12 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
       reader.onload = (e) => {
         const result = e.target?.result;
         if (typeof result === 'string') {
-          setImages(prev => [...prev, result]);
+          const newItem: ImageItem = {
+            id: `${Date.now()}-${Math.random()}`,
+            preview: result,
+            file: file,
+          };
+          setImages(prev => [...prev, newItem]);
         }
       };
       reader.readAsDataURL(file);
@@ -88,10 +128,15 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
   };
 
   const handleAddPresetImage = (url: string) => {
-    if (images.includes(url)) {
-      setImages(prev => prev.filter(img => img !== url));
+    const isAlreadySelected = images.some(img => img.preview === url);
+    if (isAlreadySelected) {
+      setImages(prev => prev.filter(img => img.preview !== url));
     } else {
-      setImages(prev => [...prev, url]);
+      const newItem: ImageItem = {
+        id: `${Date.now()}-${Math.random()}`,
+        preview: url,
+      };
+      setImages(prev => [...prev, newItem]);
     }
   };
 
@@ -142,22 +187,35 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
 
     setLoading(true);
     try {
+      // Real-time file upload block to Firebase Storage
+      const uploadedImageUrls = await Promise.all(
+        images.map(async (item) => {
+          if (item.file && user) {
+            return await uploadListingImage(item.file, user.uid);
+          }
+          return item.preview; // Preset url
+        })
+      );
+
       await addListing({
         title,
         description,
         price: Number(price),
         category,
         city,
-        images,
+        arrondissement: city === "N'Djaména" ? selectedArrondissement : undefined,
+        quartier: city === "N'Djaména" ? selectedQuartier : undefined,
+        images: uploadedImageUrls,
         condition,
         sellerPhone,
         sellerWhatsApp: sellerWhatsApp || sellerPhone,
       });
-      alert(getTranslation(language, 'publishSuccess'));
+      toast.success(getTranslation(language, 'publishSuccess'));
       onClose();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Une erreur s'est produite lors de la publication.";
       setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -291,16 +349,54 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                       const val = e.target.value;
                       if (isCityType(val)) {
                         setCity(val);
+                        if (val === "N'Djaména") {
+                          const firstArr = tchadData.tchad.ndjamena.arrondissements[0];
+                          setSelectedArrondissement(firstArr.nom);
+                          setSelectedQuartier(firstArr.quartiers[0]);
+                        } else {
+                          setSelectedArrondissement('');
+                          setSelectedQuartier('');
+                        }
                       }
                     }}
                     className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 focus:border-blue-500 outline-none transition-all"
                   >
-                    {CITIES.map(c => (
+                    {tchadData.tchad.regions.map(r => r.chef_lieu).sort().map(c => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
                 </div>
               </div>
+
+              {city === "N'Djaména" && (
+                <div className="grid grid-cols-2 gap-4 bg-orange-50/40 p-4 rounded-2xl border border-orange-100/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div>
+                    <label className="block font-bold text-gray-700 uppercase tracking-wide mb-1.5 text-[10px]">Arrondissement (N'Djaména)</label>
+                    <select
+                      value={selectedArrondissement}
+                      onChange={(e) => handleArrondissementChange(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-xs font-bold text-gray-700 focus:border-blue-500 outline-none transition-all"
+                    >
+                      {tchadData.tchad.ndjamena.arrondissements.map(arr => (
+                        <option key={arr.nom} value={arr.nom}>{arr.nom}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 uppercase tracking-wide mb-1.5 text-[10px]">Quartier (Préciser l'adresse)</label>
+                    <select
+                      value={selectedQuartier}
+                      onChange={(e) => setSelectedQuartier(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-xs font-bold text-gray-700 focus:border-blue-500 outline-none transition-all"
+                    >
+                      {availableQuartiers.map(q => (
+                        <option key={q} value={q}>{q}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
 
               {/* Description */}
               <div>
@@ -349,7 +445,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                 <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400 mb-2">Ou utilisez des images de test :</p>
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {PRESET_IMAGES.map((preset, idx) => {
-                    const isSelected = images.includes(preset);
+                    const isSelected = images.some(img => img.preview === preset);
                     return (
                       <button
                         key={idx}
@@ -376,7 +472,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                   <div className="grid grid-cols-4 gap-3">
                     {images.map((img, idx) => (
                       <div key={idx} className="group relative h-16 rounded-xl overflow-hidden border border-gray-100">
-                        <img src={img} className="h-full w-full object-cover" alt="Selected" referrerPolicy="no-referrer" />
+                        <img src={img.preview} className="h-full w-full object-cover" alt="Selected" referrerPolicy="no-referrer" />
                         <button
                           type="button"
                           onClick={() => handleRemoveImage(idx)}

@@ -5,6 +5,7 @@ import { CATEGORIES, CITIES } from '../data/mockData';
 import { CategoryType, ConditionType, Listing, isCategoryOrAll, isConditionOrAll } from '../types';
 import { SkeletonGrid } from './SkeletonCard';
 import { ListingCard } from './ListingCard';
+import { PriceRangeSlider } from './PriceRangeSlider';
 import { 
   Search, SlidersHorizontal, AlertTriangle, Car, Home as HomeIcon, 
   Smartphone, Briefcase, Wrench, PawPrint, Grid3X3, MapPin
@@ -54,6 +55,20 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
 
 export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
   const { language, selectedCity, setSelectedCity, listings, loadingListings } = useApp();
+
+  const maxPriceLimit = useMemo(() => {
+    if (!listings || listings.length === 0) return 50000000;
+    const maxVal = Math.max(...listings.map(l => l.price || 0));
+    // Round up to nearest 1,000,000 for a clean slider maximum
+    return maxVal > 0 ? Math.ceil(maxVal / 1000000) * 1000000 : 50000000;
+  }, [listings]);
+
+  const priceSliderStep = useMemo(() => {
+    if (maxPriceLimit <= 1000000) return 10000;
+    if (maxPriceLimit <= 5000000) return 50000;
+    if (maxPriceLimit <= 20000000) return 100000;
+    return 250000;
+  }, [maxPriceLimit]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<CategoryType | 'all'>('all');
@@ -105,12 +120,36 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
     return getDistance(userCoords.lat, userCoords.lng, coords.lat, coords.lng);
   };
 
-  const filteredCitySuggestions = useMemo(() => {
-    if (!searchQuery) return [];
-    return CITIES.filter(city => 
-      city.toLowerCase().includes(searchQuery.toLowerCase())
+  const autocompleteSuggestions = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return { categories: [], listings: [], cities: [] };
+    }
+    const query = searchQuery.toLowerCase();
+
+    const matchedCategories = CATEGORIES.filter(cat =>
+      cat.name.toLowerCase().includes(query)
     );
-  }, [searchQuery]);
+
+    const matchedListings = listings.filter(item =>
+      item.status === 'active' &&
+      (item.title.toLowerCase().includes(query) || item.description.toLowerCase().includes(query))
+    ).slice(0, 5);
+
+    const matchedCities = CITIES.filter(city =>
+      city.toLowerCase().includes(query)
+    ).slice(0, 4);
+
+    return {
+      categories: matchedCategories,
+      listings: matchedListings,
+      cities: matchedCities,
+    };
+  }, [searchQuery, listings]);
+
+  const hasSuggestions = useMemo(() => {
+    const { categories, listings, cities } = autocompleteSuggestions;
+    return categories.length > 0 || listings.length > 0 || cities.length > 0;
+  }, [autocompleteSuggestions]);
 
   const getCategoryIcon = (iconName: string) => {
     switch (iconName) {
@@ -188,7 +227,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
           <div className="relative mt-6 sm:mt-8">
             <div className="flex rounded-2xl bg-white p-1.5 shadow-lg shadow-black/10">
               <div className="flex flex-1 items-center px-3.5">
-                <Search className="h-5 w-5 text-gray-400 shrink-0" />
+                <Search className="h-5 w-5 text-gray-400 shrink-0" aria-hidden="true" />
                 <input
                   type="text"
                   value={searchQuery}
@@ -198,36 +237,128 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
                   }}
                   onFocus={() => setShowSuggestions(true)}
                   placeholder={getTranslation(language, 'searchPlaceholder')}
+                  aria-label={getTranslation(language, 'searchPlaceholder')}
                   className="w-full border-none bg-transparent px-3 text-sm font-semibold text-gray-800 focus:outline-none placeholder:text-gray-400"
                 />
               </div>
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className={`flex h-11 items-center space-x-1.5 rounded-xl px-4 text-xs font-bold transition-all active:scale-95 ${showFilters ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                aria-expanded={showFilters}
+                aria-label="Afficher ou masquer les filtres de recherche"
+                className={`flex h-11 items-center space-x-1.5 rounded-xl px-4 text-xs font-bold transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 ${showFilters ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
               >
-                <SlidersHorizontal className="h-4 w-4" />
+                <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">{getTranslation(language, 'filter')}</span>
               </button>
             </div>
 
-            {showSuggestions && filteredCitySuggestions.length > 0 && (
+            {showSuggestions && hasSuggestions && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowSuggestions(false)} />
-                <div className="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-gray-100 bg-white p-2 shadow-xl text-left z-20">
-                  {filteredCitySuggestions.map((citySuggestion) => (
-                    <button
-                      key={citySuggestion}
-                      onClick={() => {
-                        setSelectedCity(citySuggestion);
-                        setSearchQuery('');
-                        setShowSuggestions(false);
-                      }}
-                      className="w-full rounded-xl px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors flex items-center space-x-2"
-                    >
-                      <span>📍</span>
-                      <span>{citySuggestion}</span>
-                    </button>
-                  ))}
+                <div className="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-gray-100 bg-white p-3 shadow-xl text-left z-20 max-h-[420px] overflow-y-auto space-y-4 scrollbar-thin scrollbar-thumb-gray-200">
+                  
+                  {/* Category Suggestions */}
+                  {autocompleteSuggestions.categories.length > 0 && (
+                    <div id="suggested-categories">
+                      <h5 className="text-[10px] font-black uppercase tracking-wider text-gray-400 px-3 mb-1.5">Catégories</h5>
+                      <div className="space-y-0.5">
+                        {autocompleteSuggestions.categories.map((cat) => (
+                          <button
+                            key={cat.name}
+                            onClick={() => {
+                              setActiveCategory(cat.name);
+                              setSearchQuery('');
+                              setShowSuggestions(false);
+                            }}
+                            className="w-full rounded-xl px-3 py-2 text-xs font-bold text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors flex items-center space-x-2.5"
+                          >
+                            <span className="text-gray-400 shrink-0">
+                              {getCategoryIcon(cat.icon)}
+                            </span>
+                            <span>{cat.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* City Suggestions */}
+                  {autocompleteSuggestions.cities.length > 0 && (
+                    <div id="suggested-cities">
+                      <h5 className="text-[10px] font-black uppercase tracking-wider text-gray-400 px-3 mb-1.5">Villes</h5>
+                      <div className="space-y-0.5">
+                        {autocompleteSuggestions.cities.map((citySuggestion) => (
+                          <button
+                            key={citySuggestion}
+                            onClick={() => {
+                              setSelectedCity(citySuggestion);
+                              setSearchQuery('');
+                              setShowSuggestions(false);
+                            }}
+                            className="w-full rounded-xl px-3 py-2 text-xs font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center space-x-2.5"
+                          >
+                            <span className="text-blue-500 text-sm shrink-0">📍</span>
+                            <span>{citySuggestion}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Listing Suggestions */}
+                  {autocompleteSuggestions.listings.length > 0 && (
+                    <div id="suggested-listings">
+                      <h5 className="text-[10px] font-black uppercase tracking-wider text-gray-400 px-3 mb-1.5">Annonces</h5>
+                      <div className="space-y-0.5">
+                        {autocompleteSuggestions.listings.map((item) => (
+                          <div
+                            key={item.id}
+                            className="group flex items-center justify-between rounded-xl px-3 py-1.5 hover:bg-gray-50 transition-colors"
+                          >
+                            <button
+                              onClick={() => {
+                                setSearchQuery(item.title);
+                                setShowSuggestions(false);
+                              }}
+                              className="flex items-center space-x-3 text-left flex-1 min-w-0"
+                            >
+                              {item.images && item.images.length > 0 ? (
+                                <img
+                                  src={item.images[0]}
+                                  alt=""
+                                  className="h-8 w-11 object-cover rounded bg-gray-100 shrink-0"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <div className="h-8 w-11 bg-gray-100 rounded shrink-0" />
+                              )}
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-gray-800 truncate group-hover:text-blue-600 transition-colors">{item.title}</p>
+                                <div className="flex items-center space-x-1 text-[10px] text-gray-500 mt-0.5 font-semibold">
+                                  <span>{item.city}</span>
+                                  <span>•</span>
+                                  <span className="text-orange-600 font-bold">{item.price.toLocaleString('fr-FR')} FCFA</span>
+                                </div>
+                              </div>
+                            </button>
+                            
+                            {/* Direct Quick View button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onQuickView(item);
+                                setShowSuggestions(false);
+                              }}
+                              className="ml-2 text-[10px] font-black text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg px-2 py-1.5 shrink-0 border border-transparent hover:border-blue-100 transition-all active:scale-95"
+                            >
+                              Aperçu
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               </>
             )}
@@ -255,24 +386,18 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
           
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-sans">
             <div>
-              <label className="block font-bold text-gray-500 uppercase tracking-wider mb-2">Budget (FCFA)</label>
-              <div className="flex items-center space-x-2">
-                <input 
-                  type="number" 
-                  placeholder="Min"
-                  value={priceMin}
-                  onChange={(e) => setPriceMin(e.target.value !== '' ? Number(e.target.value) : '')}
-                  className="w-full rounded-xl border border-gray-100 bg-gray-50/50 px-3 py-2 font-semibold font-mono"
-                />
-                <span className="text-gray-400 font-bold">—</span>
-                <input 
-                  type="number" 
-                  placeholder="Max"
-                  value={priceMax}
-                  onChange={(e) => setPriceMax(e.target.value !== '' ? Number(e.target.value) : '')}
-                  className="w-full rounded-xl border border-gray-100 bg-gray-50/50 px-3 py-2 font-semibold font-mono"
-                />
-              </div>
+              <label className="block font-bold text-gray-500 uppercase tracking-wider mb-1.5">Budget (FCFA)</label>
+              <PriceRangeSlider
+                min={priceMin}
+                max={priceMax}
+                minLimit={0}
+                maxLimit={maxPriceLimit}
+                step={priceSliderStep}
+                onChange={(minVal, maxVal) => {
+                  setPriceMin(minVal);
+                  setPriceMax(maxVal);
+                }}
+              />
             </div>
 
             <div>
@@ -367,18 +492,19 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
           </h3>
 
           {/* Elegant Sort Buttons */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider mr-1">Trier par :</span>
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Critères de tri">
+            <span className="text-[9px] font-black text-gray-500 uppercase tracking-wider mr-1">Trier par :</span>
             
             <button
               onClick={() => {
                 setSortOption('newest');
                 setGeoError(null);
               }}
-              className={`rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition-all border ${
+              aria-pressed={sortOption === 'newest'}
+              className={`rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition-all border focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 sortOption === 'newest' 
                   ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
-                  : 'bg-white text-gray-600 border-gray-100 hover:border-gray-200'
+                  : 'bg-white text-gray-700 border-gray-100 hover:border-gray-200'
               }`}
             >
               Nouveautés
@@ -389,10 +515,11 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
                 setSortOption('priceAsc');
                 setGeoError(null);
               }}
-              className={`rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition-all border ${
+              aria-pressed={sortOption === 'priceAsc'}
+              className={`rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition-all border focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 sortOption === 'priceAsc' 
                   ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
-                  : 'bg-white text-gray-600 border-gray-100 hover:border-gray-200'
+                  : 'bg-white text-gray-700 border-gray-100 hover:border-gray-200'
               }`}
             >
               Prix bas
@@ -403,10 +530,11 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
                 setSortOption('priceDesc');
                 setGeoError(null);
               }}
-              className={`rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition-all border ${
+              aria-pressed={sortOption === 'priceDesc'}
+              className={`rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition-all border focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 sortOption === 'priceDesc' 
                   ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
-                  : 'bg-white text-gray-600 border-gray-100 hover:border-gray-200'
+                  : 'bg-white text-gray-700 border-gray-100 hover:border-gray-200'
               }`}
             >
               Prix élevé
@@ -422,13 +550,14 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
                 }
               }}
               disabled={isLocating}
-              className={`flex items-center space-x-1 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition-all border ${
+              aria-pressed={sortOption === 'distance'}
+              className={`flex items-center space-x-1 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition-all border focus:outline-none focus:ring-2 focus:ring-orange-500 ${
                 sortOption === 'distance' 
                   ? 'bg-orange-600 text-white border-orange-600 shadow-xs' 
-                  : 'bg-white text-gray-600 border-gray-100 hover:border-orange-200 hover:text-orange-600'
+                  : 'bg-white text-gray-700 border-gray-100 hover:border-orange-200 hover:text-orange-600'
               } ${isLocating ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
-              <MapPin className="h-3 w-3 shrink-0" />
+              <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
               <span>{isLocating ? 'Recherche...' : 'Proximité'}</span>
             </button>
           </div>

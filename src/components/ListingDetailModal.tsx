@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Listing } from '../types';
 import { useApp } from '../context/AppContext';
 import { getTranslation } from '../utils/translations';
+import { toast } from 'react-hot-toast';
 import { 
   X, MapPin, Tag, Phone, MessageSquare, CheckCircle2, 
   Calendar, Eye, ChevronLeft, ChevronRight, Share2, Award, Clock, Heart
@@ -51,7 +52,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
 
   const handleStartChat = async () => {
     if (!user) {
-      alert(getTranslation(language, 'signInToPublish'));
+      toast.error(getTranslation(language, 'signInToPublish'));
       return;
     }
     setChatLoading(true);
@@ -60,7 +61,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
       onClose();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Erreur lors de l'ouverture du chat.";
-      alert(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setChatLoading(false);
     }
@@ -78,14 +79,21 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
 
       {/* Modal Card */}
-      <div className="relative w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl transition-all flex flex-col max-h-[90vh] md:max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
+      <div 
+        className="relative w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl transition-all flex flex-col max-h-[90vh] md:max-h-[85vh] animate-in fade-in zoom-in-95 duration-200"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+        aria-describedby="modal-desc"
+      >
         
         {/* Close Button */}
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors shadow-md"
+          aria-label="Fermer les détails de l'annonce"
+          className="absolute top-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <X className="h-5 w-5" />
+          <X className="h-5 w-5" aria-hidden="true" />
         </button>
 
         {/* Content Split Container */}
@@ -97,7 +105,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
             <div className="relative flex-1 flex items-center justify-center overflow-hidden">
               <img 
                 src={imagesList[activeImageIdx]} 
-                alt={listing.title} 
+                alt={`${listing.title} - image ${activeImageIdx + 1} sur ${imagesList.length}`} 
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
@@ -107,15 +115,17 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
                 <>
                   <button 
                     onClick={() => setActiveImageIdx(prev => prev === 0 ? imagesList.length - 1 : prev - 1)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 backdrop-blur-md text-white hover:bg-black/50"
+                    aria-label="Image précédente"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 backdrop-blur-md text-white hover:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <ChevronLeft className="h-5 w-5" />
+                    <ChevronLeft className="h-5 w-5" aria-hidden="true" />
                   </button>
                   <button 
                     onClick={() => setActiveImageIdx(prev => prev === imagesList.length - 1 ? 0 : prev + 1)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 backdrop-blur-md text-white hover:bg-black/50"
+                    aria-label="Image suivante"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 backdrop-blur-md text-white hover:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <ChevronRight className="h-5 w-5" />
+                    <ChevronRight className="h-5 w-5" aria-hidden="true" />
                   </button>
                 </>
               )}
@@ -123,12 +133,15 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
 
             {/* Thumbnail Carousel Indicators */}
             {imagesList.length > 1 && (
-              <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-2 px-4">
+              <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-2 px-4" role="tablist" aria-label="Choisir l'image à afficher">
                 {imagesList.map((img, idx) => (
                   <button
                     key={idx}
+                    role="tab"
+                    aria-selected={activeImageIdx === idx}
+                    aria-label={`Afficher l'image ${idx + 1}`}
                     onClick={() => setActiveImageIdx(idx)}
-                    className={`h-2.5 w-2.5 rounded-full transition-all ${activeImageIdx === idx ? 'bg-orange-500 w-5' : 'bg-white/50'}`}
+                    className={`h-2.5 w-2.5 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-orange-500 ${activeImageIdx === idx ? 'bg-orange-500 w-5' : 'bg-white/50'}`}
                   />
                 ))}
               </div>
@@ -141,30 +154,30 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
             {/* Meta Tags */}
             <div className="flex flex-wrap gap-2 items-center">
               <span className="flex items-center space-x-1 rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-700 uppercase tracking-wider font-mono border border-blue-100">
-                <Tag className="h-3 w-3" />
+                <Tag className="h-3 w-3" aria-hidden="true" />
                 <span>{listing.category}</span>
               </span>
-              <span className="flex items-center space-x-1 rounded-full bg-gray-50 px-3 py-1 text-[10px] font-bold text-gray-700 uppercase tracking-wider font-mono border border-gray-100">
+              <span className="flex items-center space-x-1 rounded-full bg-gray-100 px-3 py-1 text-[10px] font-bold text-gray-700 uppercase tracking-wider font-mono border border-gray-200">
                 <span>{getTranslation(language, 'condition')}: {getConditionLabel(listing.condition)}</span>
               </span>
             </div>
 
             {/* Title & Location */}
-            <h2 className="mt-4 text-xl sm:text-2xl font-black text-gray-900 tracking-tight font-sans">
+            <h2 id="modal-title" className="mt-4 text-xl sm:text-2xl font-black text-gray-900 tracking-tight font-sans">
               {listing.title}
             </h2>
             
-            <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs font-semibold text-gray-400">
-              <div className="flex items-center space-x-1 text-gray-500">
-                <MapPin className="h-4 w-4 text-blue-600" />
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs font-semibold text-gray-500">
+              <div className="flex items-center space-x-1 text-gray-600">
+                <MapPin className="h-4 w-4 text-blue-600" aria-hidden="true" />
                 <span>{listing.city}{listing.arrondissement ? ` - ${listing.arrondissement}` : ''}{listing.quartier ? ` (${listing.quartier})` : ''}</span>
               </div>
-              <div className="flex items-center space-x-1 font-mono text-gray-500">
-                <Calendar className="h-4 w-4 text-gray-400" />
+              <div className="flex items-center space-x-1 font-mono text-gray-600">
+                <Calendar className="h-4 w-4 text-gray-400" aria-hidden="true" />
                 <span>{new Date(listing.createdAt).toLocaleDateString(language === 'EN' ? 'en' : 'fr', { dateStyle: 'medium' })}</span>
               </div>
-              <div className="flex items-center space-x-1 font-mono text-gray-500">
-                <Eye className="h-4 w-4 text-gray-400" />
+              <div className="flex items-center space-x-1 font-mono text-gray-600">
+                <Eye className="h-4 w-4 text-gray-400" aria-hidden="true" />
                 <span>{listing.viewsCount} {getTranslation(language, 'views')}</span>
               </div>
             </div>
@@ -172,7 +185,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
             {/* Price section */}
             <div className="mt-5 rounded-2xl bg-blue-50/50 border border-blue-100/50 p-4 flex items-center justify-between">
               <div>
-                <p className="text-[10px] uppercase font-bold tracking-wider text-blue-500 font-mono">
+                <p className="text-[10px] uppercase font-bold tracking-wider text-blue-600 font-mono">
                   {getTranslation(language, 'price')}
                 </p>
                 <p className="text-xl sm:text-2xl font-black text-blue-600 font-mono leading-tight tracking-tight">
@@ -181,24 +194,21 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
               </div>
               <div className="flex items-center space-x-2">
                 <button
-                  onClick={() => {
-                    if (!user) {
-                      alert("Veuillez vous connecter pour ajouter aux favoris.");
-                      return;
-                    }
-                    toggleFavorite(listing.id);
-                  }}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 hover:scale-105 active:scale-95 transition-transform shadow-sm"
+                  onClick={() => toggleFavorite(listing.id)}
+                  aria-label={savedListings?.includes(listing.id) ? "Retirer des favoris" : "Ajouter aux favoris"}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:scale-105 active:scale-95 transition-transform shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
                   <Heart 
                     className={`h-5 w-5 transition-colors ${savedListings?.includes(listing.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} 
+                    aria-hidden="true"
                   />
                 </button>
                 <button 
                   onClick={handleShare}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 hover:text-gray-900 shadow-sm"
+                  aria-label="Partager cette annonce"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <Share2 className="h-4 w-4" />
+                  <Share2 className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -208,28 +218,28 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
 
             {/* Description details */}
             <div className="mt-6">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">Description</h4>
-              <p className="mt-2.5 text-sm leading-relaxed text-gray-600 whitespace-pre-line font-sans">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">Description</h4>
+              <p id="modal-desc" className="mt-2.5 text-sm leading-relaxed text-gray-600 whitespace-pre-line font-sans">
                 {listing.description}
               </p>
             </div>
 
             {/* Seller profile card */}
             <div className="mt-8 rounded-2xl border border-gray-100 bg-gray-50/50 p-4">
-              <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400 mb-3">{getTranslation(language, 'aboutSeller')}</p>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-gray-500 mb-3">{getTranslation(language, 'aboutSeller')}</p>
               <div className="flex items-center space-x-3.5">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white text-base font-bold shrink-0 shadow-md shadow-blue-100">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white text-base font-bold shrink-0 shadow-md shadow-blue-100" aria-hidden="true">
                   {listing.sellerName.slice(0, 2).toUpperCase()}
                 </div>
                 <div>
                   <div className="flex items-center space-x-1.5">
                     <span className="font-bold text-gray-800 text-sm leading-none">{listing.sellerName}</span>
                     {listing.sellerIsVerified && (
-                      <CheckCircle2 className="h-4 w-4 fill-blue-600 text-white" />
+                      <CheckCircle2 className="h-4 w-4 fill-blue-600 text-white" aria-hidden="true" />
                     )}
                   </div>
-                  <div className="mt-1 flex items-center space-x-1.5 text-xs text-gray-500 font-semibold">
-                    <Clock className="h-3.5 w-3.5 text-gray-400" />
+                  <div className="mt-1 flex items-center space-x-1.5 text-xs text-gray-600 font-semibold">
+                    <Clock className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
                     <span>{listing.sellerResponseTime}</span>
                   </div>
                 </div>

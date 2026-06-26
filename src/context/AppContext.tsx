@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
+import { toast } from 'react-hot-toast';
 import { 
   collection, 
   query, 
@@ -11,9 +12,12 @@ import {
   setDoc,
   where,
   getDocs,
+  getDoc,
   FirestoreDataConverter,
   QueryDocumentSnapshot
 } from 'firebase/firestore';
+import { useQuery } from '@tanstack/react-query';
+import { queryClient } from '../lib/queryClient';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Listing, Chat, Message, LanguageType, CityType, PublicUserProfileDTO } from '../types';
 import { MOCK_LISTINGS } from '../data/mockData';
@@ -55,7 +59,21 @@ const listingConverter: FirestoreDataConverter<Listing> = {
 
 const chatConverter: FirestoreDataConverter<Chat> = {
   toFirestore(chat: Chat) {
-    return chat;
+    return {
+      listingId: chat.listingId,
+      listingTitle: chat.listingTitle,
+      listingPrice: chat.listingPrice,
+      listingImage: chat.listingImage,
+      buyerId: chat.buyerId,
+      buyerName: chat.buyerName,
+      sellerId: chat.sellerId,
+      sellerName: chat.sellerName,
+      lastMessage: chat.lastMessage,
+      lastMessageAt: chat.lastMessageAt,
+      participantIds: chat.participantIds,
+      unreadCount: chat.unreadCount || {},
+      typing: chat.typing || {},
+    };
   },
   fromFirestore(snapshot: QueryDocumentSnapshot): Chat {
     const data = snapshot.data();
@@ -73,13 +91,19 @@ const chatConverter: FirestoreDataConverter<Chat> = {
       lastMessageAt: data.lastMessageAt || '',
       participantIds: data.participantIds || [],
       unreadCount: data.unreadCount,
+      typing: data.typing || {},
     };
   }
 };
 
 const messageConverter: FirestoreDataConverter<Message> = {
   toFirestore(message: Message) {
-    return message;
+    return {
+      senderId: message.senderId,
+      text: message.text,
+      createdAt: message.createdAt,
+      seen: message.seen || false,
+    };
   },
   fromFirestore(snapshot: QueryDocumentSnapshot): Message {
     const data = snapshot.data();
@@ -88,6 +112,7 @@ const messageConverter: FirestoreDataConverter<Message> = {
       senderId: data.senderId || '',
       text: data.text || '',
       createdAt: data.createdAt || '',
+      seen: data.seen || false,
     };
   }
 };
@@ -119,6 +144,7 @@ interface AppContextType {
   deleteListing: (listingId: string) => Promise<void>;
   startNewChat: (listing: Listing) => Promise<string>;
   sendMessage: (chatId: string, text: string) => Promise<void>;
+  updateTypingStatus: (chatId: string, isTyping: boolean) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -129,27 +155,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'messages' | 'my-ads' | 'account'>('home');
   const [user, setUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
-  const [savedListings, setSavedListings] = useState<string[]>([]);
-  
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [loadingListings, setLoadingListings] = useState(true);
-  
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [loadingChats, setLoadingChats] = useState(false);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
-
-  const unreadCount = useMemo(() => {
-    if (!user) return 0;
-    return chats.reduce((acc, chat) => {
-      const count = chat.unreadCount?.[user.uid] || 0;
-      return acc + count;
-    }, 0);
-  }, [chats, user]);
 
   // Monitor network status
   useEffect(() => {
@@ -186,171 +194,164 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.uid}`);
         });
       } else {
-        setChats([]);
         setActiveChatId(null);
       }
     });
     return unsubscribe;
   }, []);
 
-  // Monitor user document for savedListings (favorites)
-  useEffect(() => {
-    if (!user) {
-      setSavedListings([]);
-      return;
-    }
-    const userRef = doc(db, 'users', user.uid);
-    const unsubscribe = onSnapshot(userRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setSavedListings(data.savedListings || []);
+  // Monitor user document for savedListings (favorites) using React Query
+  const { data: savedListings = [] } = useQuery<string[]>({
+    queryKey: ['savedListings', user?.uid],
+    queryFn: async () => {
+      if (!user) return [];
+      const userRef = doc(db, 'users', user.uid);
+      try {
+        const docSnap = await getDoc(userRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          return data.savedListings || [];
+        }
+        return [];
+      } catch (error) {
+        console.error("Failed to fetch saved listings:", error);
+        return [];
       }
-    });
-    return unsubscribe;
-  }, [user]);
+    },
+    enabled: !!user,
+    staleTime: 5000,
+  });
 
   const toggleFavorite = async (listingId: string) => {
-    if (!user) throw new Error("Veuillez vous connecter pour ajouter aux favoris.");
+    if (!user) {
+      toast.error("Veuillez vous connecter pour ajouter aux favoris.");
+      throw new Error("Veuillez vous connecter pour ajouter aux favoris.");
+    }
     const userRef = doc(db, 'users', user.uid);
+    const previousSaved = savedListings;
     try {
-      const isSaved = savedListings.includes(listingId);
+      const isSaved = previousSaved.includes(listingId);
       let newSaved;
       if (isSaved) {
-        newSaved = savedListings.filter(id => id !== listingId);
+        newSaved = previousSaved.filter(id => id !== listingId);
+        toast.success("Annonce retirée des favoris");
       } else {
-        newSaved = [...savedListings, listingId];
+        newSaved = [...previousSaved, listingId];
+        toast.success("Annonce ajoutée aux favoris !");
       }
+      
       // Optimistic update
-      setSavedListings(newSaved);
+      queryClient.setQueryData(['savedListings', user.uid], newSaved);
+      
       await setDoc(userRef, { savedListings: newSaved }, { merge: true });
     } catch (err) {
       console.error("Error toggling favorite:", err);
       // Revert on error
-      const isSaved = savedListings.includes(listingId);
-      if (isSaved) {
-        setSavedListings([...savedListings, listingId]);
-      } else {
-        setSavedListings(savedListings.filter(id => id !== listingId));
-      }
+      queryClient.setQueryData(['savedListings', user.uid], previousSaved);
+      toast.error("Erreur lors de la mise à jour des favoris.");
       throw new Error("Erreur lors de la mise à jour des favoris.");
     }
   };
 
-  // Sync listings from Firestore
+  // Sync listings from Firestore with React Query
+  const { data: listings = [], isLoading: loadingListings } = useQuery<Listing[]>({
+    queryKey: ['listings'],
+    queryFn: async () => {
+      const listingsPath = 'listings';
+      try {
+        const q = query(collection(db, listingsPath).withConverter(listingConverter), orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        const fetchedListings: Listing[] = [];
+        snapshot.forEach((doc) => {
+          fetchedListings.push(doc.data());
+        });
+        
+        // Merge fetched listings with mock listings
+        const firebaseListingIds = new Set(fetchedListings.map((l: Listing) => l.id));
+        const filteredMocks = MOCK_LISTINGS.filter((mock: Listing) => !firebaseListingIds.has(mock.id));
+        
+        return [...fetchedListings, ...filteredMocks];
+      } catch (error) {
+        console.error("Listing Sync Error, falling back to offline mocks: ", error);
+        handleFirestoreError(error, OperationType.LIST, listingsPath);
+        return MOCK_LISTINGS;
+      }
+    },
+    staleTime: 10000,
+    refetchInterval: 10000, // Background automatic refresh every 10s
+  });
+
+  // Sync chats from Firestore with React Query
+  const { data: chats = [], isLoading: loadingChats } = useQuery<Chat[]>({
+    queryKey: ['chats', user?.uid],
+    queryFn: async () => {
+      if (!user) return [];
+      const chatsPath = 'chats';
+      try {
+        const q = query(
+          collection(db, chatsPath).withConverter(chatConverter), 
+          where('participantIds', 'array-contains', user.uid),
+          orderBy('lastMessageAt', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        const fetchedChats: Chat[] = [];
+        snapshot.forEach((doc) => {
+          fetchedChats.push(doc.data());
+        });
+        return fetchedChats;
+      } catch (error) {
+        console.error("Chat sync failed: ", error);
+        handleFirestoreError(error, OperationType.LIST, chatsPath);
+        return [];
+      }
+    },
+    enabled: !!user,
+    staleTime: 5000,
+    refetchInterval: 5000, // Background automatic refresh every 5s
+  });
+
+  // Sync active chat messages with React Query
+  const { data: messages = [], isLoading: loadingMessages } = useQuery<Message[]>({
+    queryKey: ['messages', activeChatId, user?.uid],
+    queryFn: async () => {
+      if (!activeChatId || !user) return [];
+      const messagesPath = `chats/${activeChatId}/messages`;
+      try {
+        const q = query(collection(db, messagesPath).withConverter(messageConverter), orderBy('createdAt', 'asc'));
+        const snapshot = await getDocs(q);
+        const fetchedMessages: Message[] = [];
+        snapshot.forEach((docSnap) => {
+          fetchedMessages.push(docSnap.data());
+        });
+        return fetchedMessages;
+      } catch (error) {
+        console.error("Messages sync failed: ", error);
+        handleFirestoreError(error, OperationType.LIST, messagesPath);
+        return [];
+      }
+    },
+    enabled: !!activeChatId && !!user,
+    staleTime: 3000,
+    refetchInterval: 3000, // Background automatic refresh every 3s
+  });
+
+  // Automatically mark unread messages as seen when messages are loaded
   useEffect(() => {
-    const listingsPath = 'listings';
-    setLoadingListings(true);
+    if (!activeChatId || !user || !messages.length) return;
 
-    try {
-      const q = query(collection(db, listingsPath).withConverter(listingConverter), orderBy('createdAt', 'desc'));
-      const unsubscribe = onSnapshot(q, 
-        (snapshot) => {
-          const fetchedListings: Listing[] = [];
-          snapshot.forEach((doc) => {
-            fetchedListings.push(doc.data());
-          });
-          
-          // Merge fetched listings with mock listings (so user gets a rich catalog instantly!)
-          // Make sure IDs don't conflict
-          const firebaseListingIds = new Set(fetchedListings.map((l: Listing) => l.id));
-          const filteredMocks = MOCK_LISTINGS.filter((mock: Listing) => !firebaseListingIds.has(mock.id));
-          
-          setListings([...fetchedListings, ...filteredMocks]);
-          setLoadingListings(false);
-        },
-        (error) => {
-          console.error("Listing Sync Error, falling back to offline mocks: ", error);
-          setListings(MOCK_LISTINGS);
-          setLoadingListings(false);
-          handleFirestoreError(error, OperationType.LIST, listingsPath);
-        }
-      );
-      return unsubscribe;
-    } catch (error) {
-      console.warn("Could not setup listings listener, offline or unauthorized:", error);
-      setListings(MOCK_LISTINGS);
-      setLoadingListings(false);
-    }
-  }, []);
-
-  // Sync chats from Firestore
-  useEffect(() => {
-    if (!user) {
-      setChats([]);
-      setLoadingChats(false);
-      return;
-    }
-
-    const chatsPath = 'chats';
-    setLoadingChats(true);
-
-    try {
-      const q = query(
-        collection(db, chatsPath).withConverter(chatConverter), 
-        where('participantIds', 'array-contains', user.uid),
-        orderBy('lastMessageAt', 'desc')
-      );
-      
-      const unsubscribe = onSnapshot(q, 
-        (snapshot) => {
-          const fetchedChats: Chat[] = [];
-          snapshot.forEach((doc) => {
-            fetchedChats.push(doc.data());
-          });
-          setChats(fetchedChats);
-          setLoadingChats(false);
-        },
-        (error) => {
-          console.error("Chat sync failed: ", error);
-          setLoadingChats(false);
-          handleFirestoreError(error, OperationType.LIST, chatsPath);
-        }
-      );
-      return unsubscribe;
-    } catch (error) {
-      console.warn("Could not register chats listener: ", error);
-      setLoadingChats(false);
-    }
-  }, [user]);
-
-  // Sync active chat messages
-  useEffect(() => {
-    if (!activeChatId || !user) {
-      setMessages([]);
-      setLoadingMessages(false);
-      return;
-    }
-
-    const messagesPath = `chats/${activeChatId}/messages`;
-    setLoadingMessages(true);
-
-    try {
-      const q = query(collection(db, messagesPath).withConverter(messageConverter), orderBy('createdAt', 'asc'));
-      const unsubscribe = onSnapshot(q, 
-        (snapshot) => {
-          const fetchedMessages: Message[] = [];
-          snapshot.forEach((doc) => {
-            fetchedMessages.push(doc.data());
-          });
-          setMessages(fetchedMessages);
-          setLoadingMessages(false);
-        },
-        (error) => {
-          console.error("Messages sync failed: ", error);
-          setLoadingMessages(false);
-          handleFirestoreError(error, OperationType.LIST, messagesPath);
-        }
-      );
-      return unsubscribe;
-    } catch (error) {
-      console.warn("Could not register messages listener: ", error);
-      setLoadingMessages(false);
-    }
-  }, [activeChatId, user]);
+    messages.forEach((msg) => {
+      if (msg.senderId !== user.uid && !msg.seen) {
+        const msgRef = doc(db, `chats/${activeChatId}/messages`, msg.id);
+        updateDoc(msgRef, { seen: true }).catch((err) => {
+          console.error("Failed to mark message as seen:", err);
+        });
+      }
+    });
+  }, [activeChatId, user, messages]);
 
   // Reset current user's unread count when they are actively viewing a chat
   useEffect(() => {
-    if (!activeChatId || !user) return;
+    if (!activeChatId || !user || !chats.length) return;
 
     const activeChat = chats.find(c => c.id === activeChatId);
     if (!activeChat) return;
@@ -368,6 +369,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       });
     }
   }, [activeChatId, chats, user]);
+
+  const unreadCount = useMemo(() => {
+    if (!user) return 0;
+    return chats.reduce((acc, chat) => {
+      const count = chat.unreadCount?.[user.uid] || 0;
+      return acc + count;
+    }, 0);
+  }, [chats, user]);
 
   // Function to publish a new listing
   const addListing = async (listingData: Omit<Listing, 'id' | 'createdAt' | 'viewsCount' | 'status' | 'sellerId' | 'sellerName' | 'sellerIsVerified' | 'sellerResponseTime'>) => {
@@ -394,6 +403,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
     try {
       await setDoc(newDocRef, newListing);
+      queryClient.invalidateQueries({ queryKey: ['listings'] });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, listingsPath);
     }
@@ -401,10 +411,13 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Increment listing views count
   const incrementListingViews = async (listingId: string) => {
-    // Only increment for listings stored in Firestore (starts with firebase random ids)
+    // Optimistic cache update for both mock and firestore listings
+    queryClient.setQueryData<Listing[]>(['listings'], (oldListings) => {
+      if (!oldListings) return [];
+      return oldListings.map(l => l.id === listingId ? { ...l, viewsCount: l.viewsCount + 1 } : l);
+    });
+
     if (listingId.startsWith('lst-')) {
-      // Local state bump for mock listings
-      setListings((prev: Listing[]) => prev.map((l: Listing) => l.id === listingId ? { ...l, viewsCount: l.viewsCount + 1 } : l));
       return;
     }
 
@@ -416,6 +429,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         await updateDoc(listingRef, {
           viewsCount: currentListing.viewsCount + 1
         });
+        queryClient.invalidateQueries({ queryKey: ['listings'] });
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `${listingsPath}/${listingId}`);
@@ -424,14 +438,13 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Mark listing as sold
   const markListingAsSold = async (listingId: string) => {
+    // Optimistic cache update for both mock and firestore listings
+    queryClient.setQueryData<Listing[]>(['listings'], (oldListings) => {
+      if (!oldListings) return [];
+      return oldListings.map(l => l.id === listingId ? { ...l, status: 'sold' } : l);
+    });
+
     if (listingId.startsWith('lst-')) {
-      setListings((prev: Listing[]) => prev.map((l: Listing) => {
-        if (l.id === listingId) {
-          const updated: Listing = { ...l, status: 'sold' };
-          return updated;
-        }
-        return l;
-      }));
       return;
     }
 
@@ -441,6 +454,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       await updateDoc(listingRef, {
         status: 'sold'
       });
+      queryClient.invalidateQueries({ queryKey: ['listings'] });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `${listingsPath}/${listingId}`);
     }
@@ -448,8 +462,13 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Delete a listing
   const deleteListing = async (listingId: string) => {
+    // Optimistic cache update for both mock and firestore listings
+    queryClient.setQueryData<Listing[]>(['listings'], (oldListings) => {
+      if (!oldListings) return [];
+      return oldListings.filter(l => l.id !== listingId);
+    });
+
     if (listingId.startsWith('lst-')) {
-      setListings((prev: Listing[]) => prev.filter((l: Listing) => l.id !== listingId));
       return;
     }
 
@@ -459,6 +478,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       await updateDoc(listingRef, {
         status: 'archived'
       });
+      queryClient.invalidateQueries({ queryKey: ['listings'] });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `${listingsPath}/${listingId}`);
     }
@@ -504,6 +524,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       await setDoc(doc(db, chatsPath, newChatId), newChat);
       setActiveChatId(newChatId);
       setActiveTab('messages');
+      queryClient.invalidateQueries({ queryKey: ['chats', user.uid] });
       return newChatId;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, chatsPath);
@@ -553,8 +574,25 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           lastMessageAt: new Date().toISOString()
         });
       }
+
+      // Invalidate queries to fetch the updated conversation history and chat list
+      queryClient.invalidateQueries({ queryKey: ['messages', chatId, user.uid] });
+      queryClient.invalidateQueries({ queryKey: ['chats', user.uid] });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, messagesPath);
+    }
+  };
+
+  // Update typing status in Firestore
+  const updateTypingStatus = async (chatId: string, isTyping: boolean) => {
+    if (!user) return;
+    try {
+      const chatRef = doc(db, 'chats', chatId);
+      await updateDoc(chatRef, {
+        [`typing.${user.uid}`]: isTyping
+      });
+    } catch (error) {
+      console.error("Failed to update typing status:", error);
     }
   };
 
@@ -586,7 +624,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         markListingAsSold,
         deleteListing,
         startNewChat,
-        sendMessage
+        sendMessage,
+        updateTypingStatus
       }}
     >
       {children}
