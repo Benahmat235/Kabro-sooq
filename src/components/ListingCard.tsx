@@ -1,8 +1,8 @@
-import React from 'react';
-import { Listing } from '../types';
+import React, { useCallback } from 'react';
+import { Listing, LanguageType } from '../types';
 import { getTranslation } from '../utils/translations';
 import { useApp } from '../context/AppContext';
-import { MapPin, Tag, CheckCircle2, Eye, Heart } from 'lucide-react';
+import { MapPin, CheckCircle2, Eye, Heart } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface ListingCardProps {
@@ -11,34 +11,45 @@ interface ListingCardProps {
   distance?: number;
 }
 
-export const ListingCard: React.FC<ListingCardProps> = ({ listing, onQuickView, distance }) => {
-  const { language, savedListings, toggleFavorite, user } = useApp();
+const formatPrice = (val: number) => {
+  return new Intl.NumberFormat('fr-FR').format(val) + " FCFA";
+};
+
+const getConditionBadge = (cond: string, language: LanguageType) => {
+  switch (cond) {
+    case 'new':
+      return { text: getTranslation(language, 'new'), bg: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
+    case 'excellent':
+      return { text: getTranslation(language, 'excellent'), bg: 'bg-blue-50 text-blue-700 border-blue-100' };
+    case 'good':
+      return { text: getTranslation(language, 'good'), bg: 'bg-amber-50 text-amber-700 border-amber-100' };
+    default:
+      return { text: getTranslation(language, 'used'), bg: 'bg-gray-100 text-gray-700 border-gray-200' };
+  }
+};
+
+export const ListingCard: React.FC<ListingCardProps> = React.memo(({ listing, onQuickView, distance }) => {
+  const { language, savedListings, toggleFavorite } = useApp();
 
   const isSaved = savedListings?.includes(listing.id);
 
-  const handleToggleFavorite = (e: React.MouseEvent) => {
+  const handleToggleFavorite = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     toggleFavorite(listing.id);
-  };
+  }, [toggleFavorite, listing.id]);
 
-  const formatPrice = (val: number) => {
-    return new Intl.NumberFormat('fr-FR').format(val) + " FCFA";
-  };
+  const handleQuickViewClick = useCallback(() => {
+    onQuickView(listing);
+  }, [onQuickView, listing]);
 
-  const getConditionBadge = (cond: string) => {
-    switch (cond) {
-      case 'new':
-        return { text: getTranslation(language, 'new'), bg: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
-      case 'excellent':
-        return { text: getTranslation(language, 'excellent'), bg: 'bg-blue-50 text-blue-700 border-blue-100' };
-      case 'good':
-        return { text: getTranslation(language, 'good'), bg: 'bg-amber-50 text-amber-700 border-amber-100' };
-      default:
-        return { text: getTranslation(language, 'used'), bg: 'bg-gray-100 text-gray-700 border-gray-200' };
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onQuickView(listing);
     }
-  };
+  }, [onQuickView, listing]);
 
-  const conditionStyle = getConditionBadge(listing.condition);
+  const conditionStyle = getConditionBadge(listing.condition, language);
 
   return (
     <motion.div 
@@ -47,13 +58,8 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, onQuickView, 
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.4, ease: [0.215, 0.61, 0.355, 1] }}
       whileHover={{ y: -4, transition: { duration: 0.2 } }}
-      onClick={() => onQuickView(listing)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onQuickView(listing);
-        }
-      }}
+      onClick={handleQuickViewClick}
+      onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
       aria-label={`${listing.title}, ${formatPrice(listing.price)}. ${getTranslation(language, 'condition')} : ${conditionStyle.text}. Ville : ${listing.city}`}
@@ -161,4 +167,4 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, onQuickView, 
       </div>
     </motion.div>
   );
-};
+});

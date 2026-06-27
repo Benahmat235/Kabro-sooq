@@ -66,39 +66,43 @@ function AppContent() {
   );
 }
 
+import { ErrorBoundary } from './components/ErrorBoundary';
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppProvider>
-        <BrowserRouter>
-          <AppContent />
-          <Toaster 
-            position="bottom-right" 
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: '#333',
-                color: '#fff',
-                fontSize: '13px',
-                borderRadius: '12px',
-                padding: '10px 16px',
-              },
-              success: {
+      <ErrorBoundary>
+        <AppProvider>
+          <BrowserRouter>
+            <AppContent />
+            <Toaster 
+              position="bottom-right" 
+              toastOptions={{
+                duration: 4000,
                 style: {
-                  background: '#10B981',
+                  background: '#333',
                   color: '#fff',
+                  fontSize: '13px',
+                  borderRadius: '12px',
+                  padding: '10px 16px',
                 },
-              },
-              error: {
-                style: {
-                  background: '#EF4444',
-                  color: '#fff',
+                success: {
+                  style: {
+                    background: '#10B981',
+                    color: '#fff',
+                  },
                 },
-              },
-            }}
-          />
-        </BrowserRouter>
-      </AppProvider>
+                error: {
+                  style: {
+                    background: '#EF4444',
+                    color: '#fff',
+                  },
+                },
+              }}
+            />
+          </BrowserRouter>
+        </AppProvider>
+      </ErrorBoundary>
     </QueryClientProvider>
   );
 }

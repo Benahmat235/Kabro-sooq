@@ -25,6 +25,13 @@
           "type": "string",
           "format": "date-time",
           "description": "Creation timestamp"
+        },
+        "fcmTokens": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Firebase Cloud Messaging registration tokens for real-time notifications"
         }
       },
       "required": ["uid", "name", "email", "createdAt"]
@@ -159,6 +166,49 @@
         }
       },
       "required": ["id", "senderId", "text", "createdAt"]
+    },
+    "review": {
+      "title": "Review",
+      "description": "A rating and feedback review left on a seller by a buyer",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sellerId": {
+          "type": "string"
+        },
+        "sellerName": {
+          "type": "string"
+        },
+        "buyerId": {
+          "type": "string"
+        },
+        "buyerName": {
+          "type": "string"
+        },
+        "buyerAvatarUrl": {
+          "type": "string"
+        },
+        "rating": {
+          "type": "number",
+          "description": "Rating score between 1 and 5"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "listingId": {
+          "type": "string"
+        },
+        "listingTitle": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "sellerId", "buyerId", "buyerName", "rating", "comment", "listingId", "listingTitle", "createdAt"]
     }
   },
   "firestore": {
@@ -177,6 +227,10 @@
     "/chats/{chatId}/messages/{messageId}": {
       "schema": "message",
       "description": "Messages inside a chat"
+    },
+    "/reviews/{reviewId}": {
+      "schema": "review",
+      "description": "Seller reviews and ratings"
     }
   }
 }

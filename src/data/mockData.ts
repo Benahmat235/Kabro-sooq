@@ -1,4 +1,4 @@
-import { Listing, CityType, CategoryType } from '../types';
+import { Listing, CityType, CategoryType, Review } from '../types';
 import tchadData from './tchadData.json';
 
 export const CITIES: CityType[] = tchadData.tchad.regions.map(r => r.chef_lieu);
@@ -237,3 +237,54 @@ export const MOCK_WEATHER: Record<CityType, { temp: number; condition: string }>
   "Doba": { temp: 36, condition: "Éclaircies" },
   "Pala": { temp: 37, condition: "Ensoleillé" }
 };
+
+export const MOCK_REVIEWS: Review[] = [
+  {
+    id: "rev-1",
+    sellerId: "sel-google-101",
+    sellerName: "Ahmat Al-Hadj",
+    buyerId: "buyer-abc-1",
+    buyerName: "Mahamat Saleh",
+    rating: 5,
+    comment: "Excellent vendeur ! La Toyota Hilux était exactement comme décrite. Ahmat est très honnête et disponible pour toutes les démarches administratives.",
+    listingId: "lst-1",
+    listingTitle: "Toyota Hilux Double Cabine 4x4 (2018)",
+    createdAt: new Date(Date.now() - 3600000 * 24 * 5).toISOString() // 5 days ago
+  },
+  {
+    id: "rev-2",
+    sellerId: "sel-google-101",
+    sellerName: "Ahmat Al-Hadj",
+    buyerId: "buyer-abc-2",
+    buyerName: "Idriss Djimet",
+    rating: 4,
+    comment: "Transaction fluide et rapide. Personne sérieuse et ponctuelle.",
+    listingId: "lst-mock-prev-1",
+    listingTitle: "Moto à vendre",
+    createdAt: new Date(Date.now() - 3600000 * 24 * 10).toISOString()
+  },
+  {
+    id: "rev-3",
+    sellerId: "sel-google-102",
+    sellerName: "Youssouf Haroun",
+    buyerId: "buyer-abc-3",
+    buyerName: "Fatimé Zara",
+    rating: 5,
+    comment: "L'iPhone 15 est impeccable ! Youssouf a pris le temps de tout me montrer et de m'aider à transférer mes données. Je recommande vivement !",
+    listingId: "lst-2",
+    listingTitle: "iPhone 15 Pro Max - 256 GB",
+    createdAt: new Date(Date.now() - 3600000 * 24 * 2).toISOString() // 2 days ago
+  },
+  {
+    id: "rev-4",
+    sellerId: "sel-google-104",
+    sellerName: "Arnaud Ndouba",
+    buyerId: "buyer-abc-4",
+    buyerName: "Jean-Pierre",
+    rating: 5,
+    comment: "Moto Sanili achetée en excellent état. Arnaud est d'une grande gentillesse et très pro.",
+    listingId: "lst-4",
+    listingTitle: "Moto Sanili 110cc - État Neuf",
+    createdAt: new Date(Date.now() - 3600000 * 24 * 1).toISOString() // 1 day ago
+  }
+];

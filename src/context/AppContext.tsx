@@ -13,14 +13,18 @@ import {
   where,
   getDocs,
   getDoc,
+  arrayUnion,
   FirestoreDataConverter,
-  QueryDocumentSnapshot
+  QueryDocumentSnapshot,
+  PartialWithFieldValue,
+  SetOptions,
+  DocumentData
 } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
 import { queryClient } from '../lib/queryClient';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Listing, Chat, Message, LanguageType, CityType, PublicUserProfileDTO } from '../types';
-import { MOCK_LISTINGS } from '../data/mockData';
+import { Listing, Chat, Message, LanguageType, CityType, PublicUserProfileDTO, FirestoreUserDoc, Review } from '../types';
+import { MOCK_LISTINGS, MOCK_REVIEWS } from '../data/mockData';
 import { sanitizeUserProfile } from '../utils/userDto';
 import { 
   validateAndSanitizeListing, 
@@ -117,6 +121,74 @@ const messageConverter: FirestoreDataConverter<Message> = {
   }
 };
 
+const userProfileConverter: FirestoreDataConverter<FirestoreUserDoc> = {
+  toFirestore(profile: PartialWithFieldValue<FirestoreUserDoc>, options?: SetOptions): DocumentData {
+    if (options && 'merge' in options && options.merge) {
+      const data: DocumentData = {};
+      if (profile.uid !== undefined) data.uid = profile.uid;
+      if (profile.name !== undefined) data.name = profile.name;
+      if (profile.avatarUrl !== undefined) data.avatarUrl = profile.avatarUrl;
+      if (profile.createdAt !== undefined) data.createdAt = profile.createdAt;
+      if (profile.savedListings !== undefined) data.savedListings = profile.savedListings;
+      if (profile.fcmTokens !== undefined) data.fcmTokens = profile.fcmTokens;
+      return data;
+    }
+    return {
+      uid: profile.uid || '',
+      name: profile.name || '',
+      avatarUrl: profile.avatarUrl || '',
+      createdAt: profile.createdAt || '',
+      savedListings: profile.savedListings || [],
+      fcmTokens: profile.fcmTokens || []
+    };
+  },
+  fromFirestore(snapshot: QueryDocumentSnapshot): FirestoreUserDoc {
+    const data = snapshot.data();
+    return {
+      uid: snapshot.id,
+      name: data.name || '',
+      avatarUrl: data.avatarUrl || '',
+      createdAt: data.createdAt || '',
+      savedListings: data.savedListings || [],
+      fcmTokens: data.fcmTokens || []
+    };
+  }
+};
+
+const reviewConverter: FirestoreDataConverter<Review> = {
+  toFirestore(review: Review): DocumentData {
+    return {
+      id: review.id,
+      sellerId: review.sellerId,
+      sellerName: review.sellerName,
+      buyerId: review.buyerId,
+      buyerName: review.buyerName,
+      buyerAvatarUrl: review.buyerAvatarUrl || '',
+      rating: review.rating,
+      comment: review.comment,
+      listingId: review.listingId,
+      listingTitle: review.listingTitle,
+      createdAt: review.createdAt
+    };
+  },
+  fromFirestore(snapshot: QueryDocumentSnapshot): Review {
+    const data = snapshot.data();
+    return {
+      id: snapshot.id,
+      sellerId: data.sellerId || '',
+      sellerName: data.sellerName || '',
+      buyerId: data.buyerId || '',
+      buyerName: data.buyerName || '',
+      buyerAvatarUrl: data.buyerAvatarUrl || '',
+      rating: Number(data.rating) || 5,
+      comment: data.comment || '',
+      listingId: data.listingId || '',
+      listingTitle: data.listingTitle || '',
+      createdAt: data.createdAt || ''
+    };
+  }
+};
+
 interface AppContextType {
   language: LanguageType;
   setLanguage: (lang: LanguageType) => void;
@@ -137,6 +209,7 @@ interface AppContextType {
   isOffline: boolean;
   unreadCount: number;
   savedListings: string[];
+  reviews: Review[];
   toggleFavorite: (listingId: string) => Promise<void>;
   addListing: (listingData: Omit<Listing, 'id' | 'createdAt' | 'viewsCount' | 'status' | 'sellerId' | 'sellerName' | 'sellerIsVerified' | 'sellerResponseTime'>) => Promise<void>;
   incrementListingViews: (listingId: string) => Promise<void>;
@@ -145,6 +218,7 @@ interface AppContextType {
   startNewChat: (listing: Listing) => Promise<string>;
   sendMessage: (chatId: string, text: string) => Promise<void>;
   updateTypingStatus: (chatId: string, isTyping: boolean) => Promise<void>;
+  submitReview: (sellerId: string, sellerName: string, rating: number, comment: string, listingId: string, listingTitle: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -179,7 +253,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       
       // If user logs in, sync profile with Firestore
       if (currentUser) {
-        const userRef = doc(db, 'users', currentUser.uid);
+        const userRef = doc(db, 'users', currentUser.uid).withConverter(userProfileConverter);
         
         // Clean user object through our secure DTO filter before saving to public document
         const publicProfile: PublicUserProfileDTO = sanitizeUserProfile({
@@ -205,7 +279,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     queryKey: ['savedListings', user?.uid],
     queryFn: async () => {
       if (!user) return [];
-      const userRef = doc(db, 'users', user.uid);
+      const userRef = doc(db, 'users', user.uid).withConverter(userProfileConverter);
       try {
         const docSnap = await getDoc(userRef);
         if (docSnap.exists()) {
@@ -222,12 +296,101 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     staleTime: 5000,
   });
 
+  // Real-time synchronization of savedListings (favorites) across devices
+  useEffect(() => {
+    if (!user) return;
+    const userRef = doc(db, 'users', user.uid).withConverter(userProfileConverter);
+    const unsubscribe = onSnapshot(userRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        queryClient.setQueryData(['savedListings', user.uid], data.savedListings || []);
+      }
+    }, (error) => {
+      console.error("Error listening to user document updates:", error);
+    });
+    return unsubscribe;
+  }, [user]);
+
+  // FCM Real-time Notifications configuration
+  useEffect(() => {
+    if (!user) return;
+
+    let active = true;
+    let foregroundUnsubscribe: (() => void) | null = null;
+
+    const setupFCM = async () => {
+      try {
+        const { getMessaging, getToken, onMessage, isSupported } = await import('firebase/messaging');
+        
+        const supported = await isSupported();
+        if (!supported) {
+          console.warn("FCM is not supported in this browser context (possibly due to iframe/sandbox rules). Background/Real-time push notifications will use local browser fallback.");
+          return;
+        }
+
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          console.warn("Notification permission was denied by the user.");
+          return;
+        }
+
+        const messaging = getMessaging();
+
+        // Register service worker dynamically served by backend
+        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+
+        const token = await getToken(messaging, {
+          serviceWorkerRegistration: registration,
+        });
+
+        if (token && active) {
+          console.log("FCM Registration Token retrieved successfully:", token);
+          
+          const userRef = doc(db, 'users', user.uid).withConverter(userProfileConverter);
+          await updateDoc(userRef, {
+            fcmTokens: arrayUnion(token)
+          });
+        }
+
+        if (active) {
+          foregroundUnsubscribe = onMessage(messaging, (payload) => {
+            console.log("Foreground notification received:", payload);
+            toast((t) => (
+              <div className="flex flex-col space-y-1 p-0.5 font-sans">
+                <div className="flex items-center space-x-1.5">
+                  <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                  <span className="font-bold text-xs text-gray-800">{payload.notification?.title || 'Nouveau message'}</span>
+                </div>
+                <p className="text-[11px] text-gray-600 font-semibold leading-snug">{payload.notification?.body || ''}</p>
+              </div>
+            ), {
+              duration: 5000,
+              position: 'top-right',
+              icon: '💬',
+            });
+          });
+        }
+      } catch (err) {
+        console.error("Failed to configure FCM notifications:", err);
+      }
+    };
+
+    setupFCM();
+
+    return () => {
+      active = false;
+      if (foregroundUnsubscribe) {
+        foregroundUnsubscribe();
+      }
+    };
+  }, [user]);
+
   const toggleFavorite = async (listingId: string) => {
     if (!user) {
       toast.error("Veuillez vous connecter pour ajouter aux favoris.");
       throw new Error("Veuillez vous connecter pour ajouter aux favoris.");
     }
-    const userRef = doc(db, 'users', user.uid);
+    const userRef = doc(db, 'users', user.uid).withConverter(userProfileConverter);
     const previousSaved = savedListings;
     try {
       const isSaved = previousSaved.includes(listingId);
@@ -341,7 +504,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
     messages.forEach((msg) => {
       if (msg.senderId !== user.uid && !msg.seen) {
-        const msgRef = doc(db, `chats/${activeChatId}/messages`, msg.id);
+        const msgRef = doc(db, `chats/${activeChatId}/messages`, msg.id).withConverter(messageConverter);
         updateDoc(msgRef, { seen: true }).catch((err) => {
           console.error("Failed to mark message as seen:", err);
         });
@@ -359,7 +522,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     const currentUnread = activeChat.unreadCount?.[user.uid] || 0;
     if (currentUnread > 0) {
       const chatsPath = 'chats';
-      const chatRef = doc(db, chatsPath, activeChatId);
+      const chatRef = doc(db, chatsPath, activeChatId).withConverter(chatConverter);
       const newUnreadCount = {
         ...(activeChat.unreadCount || {}),
         [user.uid]: 0
@@ -414,25 +577,26 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     // Optimistic cache update for both mock and firestore listings
     queryClient.setQueryData<Listing[]>(['listings'], (oldListings) => {
       if (!oldListings) return [];
-      return oldListings.map(l => l.id === listingId ? { ...l, viewsCount: l.viewsCount + 1 } : l);
+      return oldListings.map(l => l.id === listingId ? { ...l, viewsCount: (l.viewsCount || 0) + 1 } : l);
     });
 
     if (listingId.startsWith('lst-')) {
       return;
     }
 
-    const listingsPath = 'listings';
     try {
-      const listingRef = doc(db, listingsPath, listingId);
-      const currentListing = listings.find((l: Listing) => l.id === listingId);
-      if (currentListing) {
-        await updateDoc(listingRef, {
-          viewsCount: currentListing.viewsCount + 1
-        });
-        queryClient.invalidateQueries({ queryKey: ['listings'] });
+      const response = await fetch(`/api/listings/${listingId}/increment-views`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to securely increment views');
       }
+      queryClient.invalidateQueries({ queryKey: ['listings'] });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `${listingsPath}/${listingId}`);
+      console.error("Failed secure views increment:", error);
     }
   };
 
@@ -450,7 +614,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
     const listingsPath = 'listings';
     try {
-      const listingRef = doc(db, listingsPath, listingId);
+      const listingRef = doc(db, listingsPath, listingId).withConverter(listingConverter);
       await updateDoc(listingRef, {
         status: 'sold'
       });
@@ -474,7 +638,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
     const listingsPath = 'listings';
     try {
-      const listingRef = doc(db, listingsPath, listingId);
+      const listingRef = doc(db, listingsPath, listingId).withConverter(listingConverter);
       await updateDoc(listingRef, {
         status: 'archived'
       });
@@ -521,7 +685,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     try {
-      await setDoc(doc(db, chatsPath, newChatId), newChat);
+      await setDoc(doc(db, chatsPath, newChatId).withConverter(chatConverter), newChat);
       setActiveChatId(newChatId);
       setActiveTab('messages');
       queryClient.invalidateQueries({ queryKey: ['chats', user.uid] });
@@ -550,7 +714,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
     try {
       // 1. Add message document
-      await setDoc(doc(db, messagesPath, messageId), messageData);
+      await setDoc(doc(db, messagesPath, messageId).withConverter(messageConverter), messageData);
       
       // 2. Update parent chat last message metadata
       const chat = chats.find(c => c.id === chatId);
@@ -578,6 +742,27 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       // Invalidate queries to fetch the updated conversation history and chat list
       queryClient.invalidateQueries({ queryKey: ['messages', chatId, user.uid] });
       queryClient.invalidateQueries({ queryKey: ['chats', user.uid] });
+
+      // 3. Trigger real-time push notification for the recipient via our secure server endpoint
+      if (otherUserId) {
+        fetch('/api/notifications/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            recipientId: otherUserId,
+            title: user.displayName || user.email?.split('@')[0] || "Nouveau message",
+            body: sanitizedText,
+            data: {
+              chatId,
+              type: 'chat'
+            }
+          })
+        }).catch(err => {
+          console.error("Error triggering push notification call:", err);
+        });
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, messagesPath);
     }
@@ -587,12 +772,89 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const updateTypingStatus = async (chatId: string, isTyping: boolean) => {
     if (!user) return;
     try {
-      const chatRef = doc(db, 'chats', chatId);
+      const chatRef = doc(db, 'chats', chatId).withConverter(chatConverter);
       await updateDoc(chatRef, {
         [`typing.${user.uid}`]: isTyping
       });
     } catch (error) {
       console.error("Failed to update typing status:", error);
+    }
+  };
+
+  // Sync reviews from Firestore with React Query
+  const { data: reviews = [] } = useQuery<Review[]>({
+    queryKey: ['reviews'],
+    queryFn: async () => {
+      const reviewsPath = 'reviews';
+      try {
+        const q = query(collection(db, reviewsPath).withConverter(reviewConverter), orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        const fetchedReviews: Review[] = [];
+        snapshot.forEach((docSnap) => {
+          fetchedReviews.push(docSnap.data());
+        });
+        
+        // Merge with mock reviews for local testing/rich UX
+        const firebaseReviewIds = new Set(fetchedReviews.map((r: Review) => r.id));
+        const filteredMocks = MOCK_REVIEWS.filter((mock: Review) => !firebaseReviewIds.has(mock.id));
+        
+        return [...fetchedReviews, ...filteredMocks];
+      } catch (error) {
+        console.error("Review Sync Error, falling back to mock reviews: ", error);
+        return MOCK_REVIEWS;
+      }
+    },
+    staleTime: 10000,
+    refetchInterval: 15000,
+  });
+
+  // Submit a new review
+  const submitReview = async (
+    sellerId: string, 
+    sellerName: string, 
+    rating: number, 
+    comment: string, 
+    listingId: string, 
+    listingTitle: string
+  ) => {
+    if (!user) {
+      toast.error("Veuillez vous connecter pour laisser un avis.");
+      throw new Error("User must be logged in to review a seller.");
+    }
+
+    if (rating < 1 || rating > 5) {
+      toast.error("La note doit être comprise entre 1 et 5.");
+      throw new Error("Rating must be between 1 and 5.");
+    }
+
+    const sanitizedComment = sanitizeText(comment);
+    const newReviewId = `rev-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const buyerName = user.displayName || user.email?.split('@')[0] || "Acheteur";
+    const buyerAvatarUrl = user.photoURL || undefined;
+
+    const newReview: Review = {
+      id: newReviewId,
+      sellerId,
+      sellerName,
+      buyerId: user.uid,
+      buyerName,
+      buyerAvatarUrl,
+      rating,
+      comment: sanitizedComment,
+      listingId,
+      listingTitle,
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      await setDoc(doc(db, 'reviews', newReviewId).withConverter(reviewConverter), newReview);
+      queryClient.setQueryData<Review[]>(['reviews'], (oldReviews = []) => {
+        return [newReview, ...oldReviews];
+      });
+      queryClient.invalidateQueries({ queryKey: ['reviews'] });
+      toast.success("Votre avis a été publié avec succès ! Merci.");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `reviews/${newReviewId}`);
     }
   };
 
@@ -618,6 +880,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         isOffline,
         unreadCount,
         savedListings,
+        reviews,
         toggleFavorite,
         addListing,
         incrementListingViews,
@@ -625,7 +888,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         deleteListing,
         startNewChat,
         sendMessage,
-        updateTypingStatus
+        updateTypingStatus,
+        submitReview
       }}
     >
       {children}

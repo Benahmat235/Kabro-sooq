@@ -24,7 +24,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, title }) =
     setCurrentIndex((prev) => (prev === 0 ? imagesList.length - 1 : prev - 1));
   };
 
-  const handleDragEnd = (_event: any, info: any) => {
+  const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: { offset: { x: number; y: number } }) => {
     const swipeThreshold = 50;
     if (info.offset.x < -swipeThreshold) {
       handleNext();
@@ -166,7 +166,7 @@ const ZoomableLightbox: React.FC<LightboxProps> = ({ images, initialIndex, title
     setIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
   };
 
-  const handleDragEnd = (_event: any, info: any) => {
+  const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: { offset: { x: number; y: number } }) => {
     if (scale > 1) return; // Swiping pages disabled when zoomed
 
     const swipeThreshold = 60;

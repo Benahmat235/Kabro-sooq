@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { getTranslation } from '../utils/translations';
-import { Send, ArrowLeft, Loader2, CheckCircle2, Check, CheckCheck, Smile } from 'lucide-react';
+import { Send, ArrowLeft, Loader2, CheckCircle2, Check, CheckCheck, Smile, Star } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 export const ChatRoom: React.FC = () => {
@@ -14,6 +14,8 @@ export const ChatRoom: React.FC = () => {
     loadingMessages, 
     sendMessage, 
     updateTypingStatus,
+    reviews,
+    submitReview,
     user 
   } = useApp();
 
@@ -21,6 +23,13 @@ export const ChatRoom: React.FC = () => {
   const [sending, setSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isTypingLocal, setIsTypingLocal] = useState(false);
+  
+  // Rating form states
+  const [showRatingForm, setShowRatingForm] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -104,6 +113,28 @@ export const ChatRoom: React.FC = () => {
     }, 2500);
   };
 
+  const handleReviewSubmit = async () => {
+    if (!activeChat || !user) return;
+    setIsSubmittingReview(true);
+    try {
+      await submitReview(
+        activeChat.sellerId,
+        activeChat.sellerName,
+        rating,
+        comment,
+        activeChat.listingId,
+        activeChat.listingTitle
+      );
+      setComment('');
+      setRating(5);
+      setShowRatingForm(false);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
   if (!activeChat) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-6 font-sans">
@@ -156,6 +187,89 @@ export const ChatRoom: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Rating & Review prompt for the buyer */}
+      {user?.uid === activeChat.buyerId && (() => {
+        const existingReview = reviews.find(
+          (r) => r.buyerId === user?.uid && r.listingId === activeChat.listingId
+        );
+
+        if (existingReview) {
+          return (
+            <div className="bg-green-50/75 border-b border-green-100 px-4 py-2 flex items-center justify-between shrink-0 font-sans text-[11px] text-green-800">
+              <div className="flex items-center space-x-1.5 min-w-0">
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                <span className="truncate">
+                  Vendeur noté : <strong>{existingReview.rating}/5</strong> — "{existingReview.comment}"
+                </span>
+              </div>
+              <span className="text-[9px] text-green-600 font-bold shrink-0 uppercase tracking-wider ml-2">Enregistré</span>
+            </div>
+          );
+        }
+
+        return (
+          <div className="bg-amber-50/70 border-b border-amber-100 px-4 py-2.5 shrink-0 font-sans">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-amber-900 leading-tight">Transaction réussie avec {activeChat.sellerName} ?</p>
+                <p className="text-[9px] text-amber-700/80 mt-0.5">Donnez votre avis pour guider la communauté de Kabro Sooq.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRatingForm(!showRatingForm)}
+                className="text-[10px] font-black uppercase text-amber-700 hover:text-amber-800 bg-white border border-amber-200 px-3 py-1.5 rounded-lg shadow-2xs transition-all duration-200 active:scale-95"
+              >
+                {showRatingForm ? 'Annuler' : 'Noter le vendeur'}
+              </button>
+            </div>
+
+            {showRatingForm && (
+              <div className="mt-3 bg-white border border-amber-100/80 rounded-xl p-3.5 space-y-3 shadow-2xs">
+                <div className="flex items-center space-x-2">
+                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider">Votre note :</span>
+                  <div className="flex items-center space-x-1">
+                    {[1, 2, 3, 4, 5].map((_, idx) => {
+                      const star = idx + 1;
+                      return (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setRating(star)}
+                          className="focus:outline-none transition-transform active:scale-125 p-0.5"
+                        >
+                          <Star 
+                            className={`h-5 w-5 ${star <= rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200'}`} 
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    maxLength={300}
+                    placeholder="Comment s'est passée la transaction ? (Ex: Ponctuel, honnête...)"
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    className="flex-1 rounded-lg bg-gray-50 border border-gray-100 px-3 py-2 text-xs font-medium outline-none focus:bg-white focus:border-amber-500 transition-all text-gray-800"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleReviewSubmit}
+                    disabled={isSubmittingReview || !comment.trim()}
+                    className="rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 text-xs font-bold shadow-xs shadow-amber-100 disabled:opacity-50 transition-colors"
+                  >
+                    {isSubmittingReview ? '...' : 'Publier'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Messages List Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3.5 flex flex-col">

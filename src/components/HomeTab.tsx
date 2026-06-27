@@ -6,9 +6,12 @@ import { CategoryType, ConditionType, Listing, isCategoryOrAll, isConditionOrAll
 import { SkeletonGrid } from './SkeletonCard';
 import { ListingCard } from './ListingCard';
 import { PriceRangeSlider } from './PriceRangeSlider';
+import { FilterButton } from './ui/FilterButton';
+import { CitySelector } from './ui/CitySelector';
+import { Select } from './ui/Select';
 import { 
   Search, SlidersHorizontal, AlertTriangle, Car, Home as HomeIcon, 
-  Smartphone, Briefcase, Wrench, PawPrint, Grid3X3, MapPin
+  Smartphone, Briefcase, Wrench, PawPrint, Grid3X3, MapPin, Heart
 } from 'lucide-react';
 
 interface HomeTabProps {
@@ -54,7 +57,7 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
 }
 
 export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
-  const { language, selectedCity, setSelectedCity, listings, loadingListings } = useApp();
+  const { language, selectedCity, setSelectedCity, listings, loadingListings, user, savedListings } = useApp();
 
   const maxPriceLimit = useMemo(() => {
     if (!listings || listings.length === 0) return 50000000;
@@ -75,6 +78,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
   const [priceMin, setPriceMin] = useState<number | ''>('');
   const [priceMax, setPriceMax] = useState<number | ''>('');
   const [selectedCondition, setSelectedCondition] = useState<ConditionType | 'all'>('all');
+  const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -166,6 +170,9 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
   const filteredListings = useMemo(() => {
     return listings.filter(item => {
       if (item.status === 'archived') return false;
+      if (showOnlyFavorites) {
+        if (!savedListings || !savedListings.includes(item.id)) return false;
+      }
       if (selectedCity !== 'all' && item.city !== selectedCity) return false;
       
       if (searchQuery.trim()) {
@@ -184,7 +191,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
 
       return true;
     });
-  }, [listings, selectedCity, searchQuery, activeCategory, selectedCondition, priceMin, priceMax]);
+  }, [listings, selectedCity, searchQuery, activeCategory, selectedCondition, priceMin, priceMax, showOnlyFavorites, savedListings]);
 
   const trendingListings = useMemo(() => {
     return listings
@@ -288,18 +295,16 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
                       <h5 className="text-[10px] font-black uppercase tracking-wider text-gray-400 px-3 mb-1.5">Villes</h5>
                       <div className="space-y-0.5">
                         {autocompleteSuggestions.cities.map((citySuggestion) => (
-                          <button
+                          <CitySelector
                             key={citySuggestion}
+                            city={citySuggestion}
+                            active={selectedCity === citySuggestion}
                             onClick={() => {
                               setSelectedCity(citySuggestion);
                               setSearchQuery('');
                               setShowSuggestions(false);
                             }}
-                            className="w-full rounded-xl px-3 py-2 text-xs font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center space-x-2.5"
-                          >
-                            <span className="text-blue-500 text-sm shrink-0">📍</span>
-                            <span>{citySuggestion}</span>
-                          </button>
+                          />
                         ))}
                       </div>
                     </div>
@@ -400,44 +405,38 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
               />
             </div>
 
-            <div>
-              <label className="block font-bold text-gray-500 uppercase tracking-wider mb-2">{getTranslation(language, 'condition')}</label>
-              <select
-                value={selectedCondition}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (isConditionOrAll(val)) {
-                    setSelectedCondition(val);
-                  }
-                }}
-                className="w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5 font-bold text-gray-700 outline-none"
-              >
-                <option value="all">{getTranslation(language, 'selectCondition')}</option>
-                <option value="new">{getTranslation(language, 'new')}</option>
-                <option value="excellent">{getTranslation(language, 'excellent')}</option>
-                <option value="good">{getTranslation(language, 'good')}</option>
-                <option value="used">{getTranslation(language, 'used')}</option>
-              </select>
-            </div>
+            <Select
+              label={getTranslation(language, 'condition')}
+              value={selectedCondition}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (isConditionOrAll(val)) {
+                  setSelectedCondition(val);
+                }
+              }}
+            >
+              <option value="all">{getTranslation(language, 'selectCondition')}</option>
+              <option value="new">{getTranslation(language, 'new')}</option>
+              <option value="excellent">{getTranslation(language, 'excellent')}</option>
+              <option value="good">{getTranslation(language, 'good')}</option>
+              <option value="used">{getTranslation(language, 'used')}</option>
+            </Select>
 
-            <div>
-              <label className="block font-bold text-gray-500 uppercase tracking-wider mb-2">{getTranslation(language, 'category')}</label>
-              <select
-                value={activeCategory}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (isCategoryOrAll(val)) {
-                    setActiveCategory(val);
-                  }
-                }}
-                className="w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5 font-bold text-gray-700 outline-none"
-              >
-                <option value="all">{getTranslation(language, 'allCategories')}</option>
-                {CATEGORIES.map(cat => (
-                  <option key={cat.name} value={cat.name}>{cat.name}</option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label={getTranslation(language, 'category')}
+              value={activeCategory}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (isCategoryOrAll(val)) {
+                  setActiveCategory(val);
+                }
+              }}
+            >
+              <option value="all">{getTranslation(language, 'allCategories')}</option>
+              {CATEGORIES.map(cat => (
+                <option key={cat.name} value={cat.name}>{cat.name}</option>
+              ))}
+            </Select>
           </div>
         </div>
       )}
@@ -446,22 +445,22 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
       <div className="space-y-3" id="categories-strip">
         <h3 className="text-sm font-bold text-gray-800 tracking-tight">{getTranslation(language, 'allCategories')}</h3>
         <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none">
-          <button
+          <FilterButton
+            active={activeCategory === 'all'}
             onClick={() => setActiveCategory('all')}
-            className={`flex items-center space-x-2 rounded-2xl px-4 py-3 text-xs font-bold shrink-0 border transition-all ${activeCategory === 'all' ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100' : 'bg-white text-gray-700 border-gray-100 hover:border-gray-200'}`}
           >
             <Grid3X3 className="h-4.5 w-4.5" />
             <span>Tous</span>
-          </button>
+          </FilterButton>
           {CATEGORIES.map((cat) => (
-            <button
+            <FilterButton
               key={cat.name}
+              active={activeCategory === cat.name}
               onClick={() => setActiveCategory(cat.name)}
-              className={`flex items-center space-x-2 rounded-2xl px-4 py-3 text-xs font-bold shrink-0 border transition-all ${activeCategory === cat.name ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100' : 'bg-white text-gray-700 border-gray-100 hover:border-gray-200'}`}
             >
               {getCategoryIcon(cat.icon)}
               <span>{cat.name}</span>
-            </button>
+            </FilterButton>
           ))}
         </div>
       </div>
@@ -495,52 +494,60 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
           <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Critères de tri">
             <span className="text-[9px] font-black text-gray-500 uppercase tracking-wider mr-1">Trier par :</span>
             
-            <button
+            {user && (
+              <FilterButton
+                size="sm"
+                variant="orange"
+                active={showOnlyFavorites}
+                onClick={() => {
+                  setShowOnlyFavorites(!showOnlyFavorites);
+                  setGeoError(null);
+                }}
+                className="mr-1"
+              >
+                <Heart className={`h-3 w-3 shrink-0 ${showOnlyFavorites ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} aria-hidden="true" />
+                <span>Mes Favoris ({savedListings?.length || 0})</span>
+              </FilterButton>
+            )}
+            
+            <FilterButton
+              size="sm"
+              active={sortOption === 'newest'}
               onClick={() => {
                 setSortOption('newest');
                 setGeoError(null);
               }}
-              aria-pressed={sortOption === 'newest'}
-              className={`rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition-all border focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                sortOption === 'newest' 
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
-                  : 'bg-white text-gray-700 border-gray-100 hover:border-gray-200'
-              }`}
             >
               Nouveautés
-            </button>
+            </FilterButton>
 
-            <button
+            <FilterButton
+              size="sm"
+              active={sortOption === 'priceAsc'}
               onClick={() => {
                 setSortOption('priceAsc');
                 setGeoError(null);
               }}
-              aria-pressed={sortOption === 'priceAsc'}
-              className={`rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition-all border focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                sortOption === 'priceAsc' 
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
-                  : 'bg-white text-gray-700 border-gray-100 hover:border-gray-200'
-              }`}
             >
               Prix bas
-            </button>
+            </FilterButton>
 
-            <button
+            <FilterButton
+              size="sm"
+              active={sortOption === 'priceDesc'}
               onClick={() => {
                 setSortOption('priceDesc');
                 setGeoError(null);
               }}
-              aria-pressed={sortOption === 'priceDesc'}
-              className={`rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition-all border focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                sortOption === 'priceDesc' 
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
-                  : 'bg-white text-gray-700 border-gray-100 hover:border-gray-200'
-              }`}
             >
               Prix élevé
-            </button>
+            </FilterButton>
 
-            <button
+            <FilterButton
+              size="sm"
+              variant="orange"
+              active={sortOption === 'distance'}
+              disabled={isLocating}
               onClick={() => {
                 if (userCoords) {
                   setSortOption('distance');
@@ -549,17 +556,11 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onQuickView }) => {
                   requestGeolocation();
                 }
               }}
-              disabled={isLocating}
-              aria-pressed={sortOption === 'distance'}
-              className={`flex items-center space-x-1 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition-all border focus:outline-none focus:ring-2 focus:ring-orange-500 ${
-                sortOption === 'distance' 
-                  ? 'bg-orange-600 text-white border-orange-600 shadow-xs' 
-                  : 'bg-white text-gray-700 border-gray-100 hover:border-orange-200 hover:text-orange-600'
-              } ${isLocating ? 'opacity-70 cursor-not-allowed' : ''}`}
+              className={isLocating ? 'opacity-70 cursor-not-allowed' : ''}
             >
               <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
               <span>{isLocating ? 'Recherche...' : 'Proximité'}</span>
-            </button>
+            </FilterButton>
           </div>
         </div>
 

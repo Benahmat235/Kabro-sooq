@@ -87,61 +87,79 @@ const ALLOWED_CATEGORIES: CategoryType[] = ["Véhicules", "Immobilier", "Télép
 const ALLOWED_CITIES: CityType[] = CITIES;
 const ALLOWED_CONDITIONS: ConditionType[] = ["new", "excellent", "good", "used"];
 
+export interface RawListingInput {
+  title?: unknown;
+  description?: unknown;
+  price?: unknown;
+  category?: unknown;
+  city?: unknown;
+  condition?: unknown;
+  sellerPhone?: unknown;
+  sellerWhatsApp?: unknown;
+  images?: unknown;
+  arrondissement?: unknown;
+  quartier?: unknown;
+}
+
 /**
  * Validates and sanitizes all fields of a Listing to enforce Zero-Trust guidelines before Firestore write.
  */
 export function validateAndSanitizeListing(
-  raw: any
+  raw: unknown
 ): Omit<Listing, 'id' | 'createdAt' | 'viewsCount' | 'status' | 'sellerId' | 'sellerName' | 'sellerIsVerified' | 'sellerResponseTime'> {
   if (!raw || typeof raw !== 'object') {
     throw new Error("Données de publication invalides.");
   }
 
+  const input = raw as RawListingInput;
+
   // 1. Title Validation
-  const title = sanitizeText(raw.title, 80);
+  const title = sanitizeText(typeof input.title === 'string' ? input.title : '', 80);
   if (!title || title.length < 5) {
     throw new Error("Le titre doit contenir entre 5 et 80 caractères.");
   }
 
   // 2. Description Validation
-  const description = sanitizeText(raw.description, 1500);
+  const description = sanitizeText(typeof input.description === 'string' ? input.description : '', 1500);
   if (!description || description.length < 10) {
     throw new Error("La description doit contenir entre 10 et 1500 caractères.");
   }
 
   // 3. Price Validation (Positive finite integer or decimal)
-  const price = Number(raw.price);
+  const price = Number(input.price);
   if (isNaN(price) || !isFinite(price) || price <= 0 || price > 99999999) {
     throw new Error("Le prix doit être un nombre positif inférieur à 100 000 000.");
   }
 
   // 4. Category Validation
-  const category = raw.category as CategoryType;
+  const category = input.category as CategoryType;
   if (!ALLOWED_CATEGORIES.includes(category)) {
     throw new Error("Catégorie invalide.");
   }
 
   // 5. City Validation
-  const city = raw.city as CityType;
+  const city = input.city as CityType;
   if (!ALLOWED_CITIES.includes(city)) {
     throw new Error("Ville invalide.");
   }
 
   // 6. Condition Validation
-  const condition = raw.condition as ConditionType;
+  const condition = input.condition as ConditionType;
   if (!ALLOWED_CONDITIONS.includes(condition)) {
     throw new Error("État/Condition invalide.");
   }
 
   // 7. Seller Contacts Validation
-  const sellerPhone = validateAndSanitizePhone(raw.sellerPhone);
-  const sellerWhatsApp = raw.sellerWhatsApp ? validateAndSanitizePhone(raw.sellerWhatsApp) : sellerPhone;
+  const sellerPhone = validateAndSanitizePhone(typeof input.sellerPhone === 'string' ? input.sellerPhone : '');
+  const sellerWhatsApp = typeof input.sellerWhatsApp === 'string' && input.sellerWhatsApp 
+    ? validateAndSanitizePhone(input.sellerWhatsApp) 
+    : sellerPhone;
 
   // 8. Images Validation
-  if (!Array.isArray(raw.images) || raw.images.length === 0) {
+  if (!Array.isArray(input.images) || input.images.length === 0) {
     throw new Error("Veuillez fournir au moins une image.");
   }
-  const images = (raw.images as unknown[])
+  const images = (input.images as unknown[])
     .map((img: unknown) => validateAndSanitizeUrl(img))
     .filter((img: string) => img !== '');
 
@@ -150,8 +168,12 @@ export function validateAndSanitizeListing(
   }
 
   // 9. Arrondissement & Quartier validation for N'Djaména
-  const arrondissement = raw.arrondissement ? sanitizeText(raw.arrondissement, 100) : undefined;
-  const quartier = raw.quartier ? sanitizeText(raw.quartier, 100) : undefined;
+  const arrondissement = typeof input.arrondissement === 'string' && input.arrondissement 
+    ? sanitizeText(input.arrondissement, 100) 
+    : undefined;
+  const quartier = typeof input.quartier === 'string' && input.quartier 
+    ? sanitizeText(input.quartier, 100) 
+    : undefined;
 
   return {
     title,

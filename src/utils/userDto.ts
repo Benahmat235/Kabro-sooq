@@ -18,7 +18,7 @@ export interface PublicUserProfileDTO {
  * @param rawUser Any object representing user data
  * @returns A safe, sanitized PublicUserProfileDTO
  */
-export function sanitizeUserProfile(rawUser: any): PublicUserProfileDTO {
+export function sanitizeUserProfile(rawUser: Record<string, unknown> | null | undefined): PublicUserProfileDTO {
   if (!rawUser) {
     return {
       uid: '',
@@ -29,7 +29,7 @@ export function sanitizeUserProfile(rawUser: any): PublicUserProfileDTO {
   }
 
   // Explicitly select only non-sensitive public fields to prevent field injection
-  const uid = typeof rawUser.uid === 'string' ? rawUser.uid : (rawUser.id || '');
+  const uid = typeof rawUser.uid === 'string' ? rawUser.uid : (typeof rawUser.id === 'string' ? rawUser.id : '');
   const name = typeof rawUser.name === 'string' 
     ? rawUser.name 
     : (typeof rawUser.displayName === 'string' ? rawUser.displayName : 'Utilisateur');

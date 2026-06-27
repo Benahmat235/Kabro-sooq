@@ -4,6 +4,8 @@ import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { toast } from 'react-hot-toast';
+import { logger } from './logger';
+import imageCompression from 'browser-image-compression';
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -57,7 +59,12 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   };
   
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  // Use our unified production logging service
+  logger.error(`Firestore [${operationType.toUpperCase()}] error on path: ${path}`, error, {
+    firestoreOperation: operationType,
+    firestorePath: path,
+    authContext: errInfo.authInfo
+  });
 
   // Only throw if the error is specifically due to missing or insufficient permissions
   const isPermissionError = 
@@ -106,13 +113,38 @@ export async function logout() {
   }
 }
 
-// Upload images helper for listings
+// Upload images helper for listings with client-side compression to optimize bandwidth for users (e.g. in Chad)
 export async function uploadListingImage(file: File, userId: string): Promise<string> {
-  const fileExtension = file.name.split('.').pop() || 'jpg';
+  let fileToUpload = file;
+
+  if (file.type.startsWith('image/')) {
+    try {
+      const options = {
+        maxSizeMB: 0.8, // Limit file size to ~800KB
+        maxWidthOrHeight: 1200, // Limit resolution to 1200px
+        useWebWorker: true,
+      };
+
+      const compressedFile = await imageCompression(file, options);
+
+      // Create a new File object with the compressed Blob to preserve name and type
+      fileToUpload = new File([compressedFile], file.name, {
+        type: compressedFile.type,
+        lastModified: Date.now(),
+      });
+
+      logger.info(`Image compressed successfully: ${(file.size / 1024 / 1024).toFixed(2)}MB -> ${(fileToUpload.size / 1024 / 1024).toFixed(2)}MB`);
+    } catch (compressError) {
+      // Gracefully fall back to original file in case of any compression issues (e.g. legacy browsers)
+      logger.error('Client-side image compression failed, uploading original file', compressError);
+    }
+  }
+
+  const fileExtension = fileToUpload.name.split('.').pop() || 'jpg';
   const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 11)}.${fileExtension}`;
   const storageRef = ref(storage, `listings/${userId}/${fileName}`);
   
-  const snapshot = await uploadBytes(storageRef, file);
+  const snapshot = await uploadBytes(storageRef, fileToUpload);
   const downloadURL = await getDownloadURL(snapshot.ref);
   return downloadURL;
 }

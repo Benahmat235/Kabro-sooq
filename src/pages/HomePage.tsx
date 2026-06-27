@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { HomeTab } from '../components/HomeTab';
 import { Listing } from '../types';
@@ -7,9 +7,9 @@ import { motion } from 'motion/react';
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
 
-  const handleQuickView = (listing: Listing) => {
+  const handleQuickView = useCallback((listing: Listing) => {
     navigate(`/listing/${listing.id}`);
-  };
+  }, [navigate]);
 
   return (
     <motion.div

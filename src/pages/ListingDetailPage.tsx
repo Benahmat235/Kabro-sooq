@@ -6,17 +6,20 @@ import { motion } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { 
   ArrowLeft, MapPin, Tag, Phone, MessageSquare, CheckCircle2, 
-  Calendar, Eye, ChevronLeft, ChevronRight, Share2, Award, Clock, Heart, AlertTriangle
+  Calendar, Eye, ChevronLeft, ChevronRight, Share2, Award, Clock, Heart, AlertTriangle,
+  Star, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { ImageCarousel } from '../components/ImageCarousel';
+import { ShareModal } from '../components/ShareModal';
 
 export const ListingDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { language, user, listings, loadingListings, startNewChat, savedListings, toggleFavorite } = useApp();
+  const { language, user, listings, loadingListings, startNewChat, savedListings, toggleFavorite, reviews } = useApp();
   
-  const [isSharing, setIsSharing] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
+  const [showSellerReviews, setShowSellerReviews] = useState(false);
 
   // Find the requested listing from local listings
   const listing = listings.find(l => l.id === id);
@@ -71,17 +74,7 @@ export const ListingDetailPage: React.FC = () => {
   };
 
   const handleShare = () => {
-    setIsSharing(true);
-    if (navigator.share) {
-      navigator.share({
-        title: listing.title,
-        text: listing.description,
-        url: window.location.href,
-      }).catch(err => console.log(err));
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      setTimeout(() => setIsSharing(false), 2000);
-    }
+    setShowShareModal(true);
   };
 
   const handleStartChat = async () => {
@@ -195,9 +188,6 @@ export const ListingDetailPage: React.FC = () => {
                 </button>
               </div>
             </div>
-            {isSharing && (
-              <p className="mt-1.5 text-right text-[10px] text-green-600 font-bold font-mono">Lien copié dans le presse-papiers !</p>
-            )}
 
             {/* Detailed description */}
             <div className="mt-6">
@@ -208,25 +198,85 @@ export const ListingDetailPage: React.FC = () => {
             </div>
 
             {/* Seller Info Card */}
-            <div className="mt-6 rounded-2xl border border-gray-100 bg-gray-50/50 p-4">
+            <div className="mt-6 rounded-2xl border border-gray-100 bg-gray-50/50 p-4 font-sans">
               <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400 mb-3">À propos du vendeur</p>
-              <div className="flex items-center space-x-3.5">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white text-sm font-bold shrink-0 shadow-md shadow-blue-100">
-                  {listing.sellerName.slice(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <div className="flex items-center space-x-1.5">
-                    <span className="font-bold text-gray-800 text-sm leading-none">{listing.sellerName}</span>
-                    {listing.sellerIsVerified && (
-                      <CheckCircle2 className="h-4 w-4 fill-blue-600 text-white" />
-                    )}
+              <div className="flex items-start justify-between">
+                <div className="flex items-center space-x-3.5">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white text-sm font-bold shrink-0 shadow-md shadow-blue-100">
+                    {listing.sellerName.slice(0, 2).toUpperCase()}
                   </div>
-                  <div className="mt-1 flex items-center space-x-1.5 text-[11px] text-gray-500 font-semibold">
-                    <Clock className="h-3.5 w-3.5 text-gray-400" />
-                    <span>Répond généralement en {listing.sellerResponseTime}</span>
+                  <div>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="font-bold text-gray-800 text-sm leading-none">{listing.sellerName}</span>
+                      {listing.sellerIsVerified && (
+                        <CheckCircle2 className="h-4 w-4 fill-blue-600 text-white" />
+                      )}
+                    </div>
+                    <div className="mt-1 flex items-center space-x-1.5 text-[11px] text-gray-500 font-semibold">
+                      <Clock className="h-3.5 w-3.5 text-gray-400" />
+                      <span>Répond généralement en {listing.sellerResponseTime}</span>
+                    </div>
+
+                    {/* Average rating star display */}
+                    {(() => {
+                      const sellerReviews = reviews.filter(r => r.sellerId === listing.sellerId);
+                      const averageRating = sellerReviews.length > 0 
+                        ? (sellerReviews.reduce((sum, r) => sum + r.rating, 0) / sellerReviews.length).toFixed(1)
+                        : null;
+
+                      if (averageRating) {
+                        return (
+                          <div className="flex items-center space-x-1 mt-1 text-xs text-amber-500 font-bold">
+                            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                            <span>{averageRating} / 5 ({sellerReviews.length} {sellerReviews.length > 1 ? 'avis' : 'avis'})</span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="text-[10px] text-gray-450 mt-1 italic font-medium">Aucun avis pour le moment</div>
+                      );
+                    })()}
                   </div>
                 </div>
+
+                {/* Show/hide reviews list button */}
+                {reviews.filter(r => r.sellerId === listing.sellerId).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSellerReviews(!showSellerReviews)}
+                    className="flex items-center space-x-1 text-[11px] font-bold text-blue-600 hover:text-blue-700 bg-white border border-gray-150 px-2.5 py-1 rounded-lg shadow-3xs"
+                  >
+                    <span>Avis</span>
+                    {showSellerReviews ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  </button>
+                )}
               </div>
+
+              {/* Expandable feedback list */}
+              {showSellerReviews && (() => {
+                const sellerReviews = reviews.filter(r => r.sellerId === listing.sellerId);
+                return (
+                  <div className="mt-4 pt-3.5 border-t border-gray-150/60 space-y-3 max-h-48 overflow-y-auto pr-1">
+                    {sellerReviews.map((rev) => (
+                      <div key={rev.id} className="bg-white border border-gray-100 rounded-xl p-3 shadow-3xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-black text-gray-700">{rev.buyerName}</span>
+                          <div className="flex items-center space-x-0.5">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Star key={s} className={`h-3 w-3 ${s <= rev.rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200'}`} />
+                            ))}
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-gray-600 mt-1.5 leading-relaxed font-medium">"{rev.comment}"</p>
+                        <div className="text-[9px] text-gray-400 font-bold font-mono mt-2 flex justify-between items-center">
+                          <span className="truncate max-w-[150px]">{rev.listingTitle}</span>
+                          <span>{new Date(rev.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -266,6 +316,12 @@ export const ListingDetailPage: React.FC = () => {
         </div>
 
       </div>
+      {showShareModal && (
+        <ShareModal 
+          listing={listing} 
+          onClose={() => setShowShareModal(false)} 
+        />
+      )}
     </motion.div>
   );
 };

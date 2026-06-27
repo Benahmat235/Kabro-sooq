@@ -40,6 +40,15 @@ export interface UserProfile {
   createdAt: string;
 }
 
+export interface FirestoreUserDoc {
+  uid: string;
+  name: string;
+  avatarUrl?: string;
+  createdAt: string;
+  savedListings?: string[];
+  fcmTokens?: string[];
+}
+
 export interface PublicUserProfileDTO {
   uid: string;
   name: string;
@@ -76,6 +85,20 @@ export interface WeatherInfo {
   temp: number;
   condition: string;
   icon: string;
+}
+
+export interface Review {
+  id: string;
+  sellerId: string;
+  sellerName: string;
+  buyerId: string;
+  buyerName: string;
+  buyerAvatarUrl?: string;
+  rating: number; // 1 to 5
+  comment: string;
+  listingId: string;
+  listingTitle: string;
+  createdAt: string; // ISO datetime string
 }
 
 export const isCategoryType = (value: string): value is CategoryType => {
