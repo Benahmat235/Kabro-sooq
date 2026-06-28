@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -11,6 +11,13 @@ import imageCompression from 'browser-image-compression';
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
 export const auth = getAuth(app);
+
+// Explicitly configure local persistence to ensure users stay logged in across sessions
+setPersistence(auth, browserLocalPersistence)
+  .catch((error) => {
+    console.error("Error setting auth persistence:", error);
+  });
+
 export const storage = getStorage(app);
 
 export const googleProvider = new GoogleAuthProvider();

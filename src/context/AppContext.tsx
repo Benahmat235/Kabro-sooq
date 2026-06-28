@@ -23,7 +23,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { queryClient } from '../lib/queryClient';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Listing, Chat, Message, LanguageType, CityType, PublicUserProfileDTO, FirestoreUserDoc, Review } from '../types';
+import { Listing, Chat, Message, LanguageType, CityType, PublicUserProfileDTO, FirestoreUserDoc, Review, Report } from '../types';
 import { MOCK_LISTINGS, MOCK_REVIEWS } from '../data/mockData';
 import { sanitizeUserProfile } from '../utils/userDto';
 import { 
@@ -189,6 +189,40 @@ const reviewConverter: FirestoreDataConverter<Review> = {
   }
 };
 
+const reportConverter: FirestoreDataConverter<Report> = {
+  toFirestore(report: Report): DocumentData {
+    return {
+      id: report.id,
+      listingId: report.listingId,
+      listingTitle: report.listingTitle,
+      listingSellerId: report.listingSellerId,
+      listingSellerName: report.listingSellerName,
+      reporterId: report.reporterId,
+      reporterName: report.reporterName,
+      reason: report.reason,
+      comment: report.comment,
+      status: report.status,
+      createdAt: report.createdAt
+    };
+  },
+  fromFirestore(snapshot: QueryDocumentSnapshot): Report {
+    const data = snapshot.data();
+    return {
+      id: snapshot.id,
+      listingId: data.listingId || '',
+      listingTitle: data.listingTitle || '',
+      listingSellerId: data.listingSellerId || '',
+      listingSellerName: data.listingSellerName || '',
+      reporterId: data.reporterId || '',
+      reporterName: data.reporterName || '',
+      reason: data.reason || 'other',
+      comment: data.comment || '',
+      status: data.status || 'pending',
+      createdAt: data.createdAt || ''
+    };
+  }
+};
+
 interface AppContextType {
   language: LanguageType;
   setLanguage: (lang: LanguageType) => void;
@@ -210,15 +244,20 @@ interface AppContextType {
   unreadCount: number;
   savedListings: string[];
   reviews: Review[];
+  reports: Report[];
+  loadingReports: boolean;
   toggleFavorite: (listingId: string) => Promise<void>;
   addListing: (listingData: Omit<Listing, 'id' | 'createdAt' | 'viewsCount' | 'status' | 'sellerId' | 'sellerName' | 'sellerIsVerified' | 'sellerResponseTime'>) => Promise<void>;
   incrementListingViews: (listingId: string) => Promise<void>;
   markListingAsSold: (listingId: string) => Promise<void>;
   deleteListing: (listingId: string) => Promise<void>;
+  updateListingQuantityAndStatus: (listingId: string, quantity: number, status: 'active' | 'sold' | 'archived' | 'out_of_stock') => Promise<void>;
   startNewChat: (listing: Listing) => Promise<string>;
   sendMessage: (chatId: string, text: string) => Promise<void>;
   updateTypingStatus: (chatId: string, isTyping: boolean) => Promise<void>;
   submitReview: (sellerId: string, sellerName: string, rating: number, comment: string, listingId: string, listingTitle: string) => Promise<void>;
+  submitReport: (listingId: string, listingTitle: string, listingSellerId: string, listingSellerName: string, reason: 'fraud' | 'counterfeit' | 'inappropriate' | 'wrong_price' | 'other', comment: string) => Promise<void>;
+  resolveReport: (reportId: string, listingId: string, action: 'archive' | 'dismiss') => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -548,27 +587,31 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     // Zero-Trust Validation & Sanitization before writing to the database!
     const validatedListingData = validateAndSanitizeListing(listingData);
     
-    const listingsPath = 'listings';
-    const listingsRef = collection(db, listingsPath).withConverter(listingConverter);
-    const newDocRef = doc(listingsRef); // Generates a random ID client-side
-    
-    const newListing: Listing = {
-      ...validatedListingData,
-      id: newDocRef.id,
-      sellerId: user.uid,
-      sellerName: sanitizeText(user.displayName || 'Vendeur', 50),
-      sellerIsVerified: false,
-      sellerResponseTime: 'Répond rapidement',
-      status: 'active',
-      viewsCount: 0,
-      createdAt: new Date().toISOString()
-    };
-
     try {
-      await setDoc(newDocRef, newListing);
+      const idToken = await user.getIdToken();
+      const response = await fetch('/api/listings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify(validatedListingData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Une erreur est survenue lors de la publication.");
+      }
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || "Une erreur est survenue lors de la publication.");
+      }
+
       queryClient.invalidateQueries({ queryKey: ['listings'] });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, listingsPath);
+    } catch (error: any) {
+      console.error("Failed to securely publish listing via backend:", error);
+      throw error;
     }
   };
 
@@ -641,6 +684,35 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       const listingRef = doc(db, listingsPath, listingId).withConverter(listingConverter);
       await updateDoc(listingRef, {
         status: 'archived'
+      });
+      queryClient.invalidateQueries({ queryKey: ['listings'] });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `${listingsPath}/${listingId}`);
+    }
+  };
+
+  // Update listing quantity and status
+  const updateListingQuantityAndStatus = async (
+    listingId: string, 
+    quantity: number, 
+    status: 'active' | 'sold' | 'archived' | 'out_of_stock'
+  ) => {
+    // Optimistic cache update for both mock and firestore listings
+    queryClient.setQueryData<Listing[]>(['listings'], (oldListings) => {
+      if (!oldListings) return [];
+      return oldListings.map(l => l.id === listingId ? { ...l, quantity, status } : l);
+    });
+
+    if (listingId.startsWith('lst-')) {
+      return;
+    }
+
+    const listingsPath = 'listings';
+    try {
+      const listingRef = doc(db, listingsPath, listingId).withConverter(listingConverter);
+      await updateDoc(listingRef, {
+        quantity: quantity,
+        status: status
       });
       queryClient.invalidateQueries({ queryKey: ['listings'] });
     } catch (error) {
@@ -858,6 +930,118 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // Sync reports from Firestore with React Query
+  const { data: reports = [], isLoading: loadingReports } = useQuery<Report[]>({
+    queryKey: ['reports', user?.uid],
+    queryFn: async () => {
+      if (!user) return [];
+      const reportsPath = 'reports';
+      try {
+        const q = query(collection(db, reportsPath).withConverter(reportConverter), orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        const fetchedReports: Report[] = [];
+        snapshot.forEach((docSnap) => {
+          fetchedReports.push(docSnap.data());
+        });
+        return fetchedReports;
+      } catch (error) {
+        console.error("Report Sync Error: ", error);
+        return [];
+      }
+    },
+    staleTime: 5000,
+    refetchInterval: 10000,
+  });
+
+  // Submit a new report
+  const submitReport = async (
+    listingId: string,
+    listingTitle: string,
+    listingSellerId: string,
+    listingSellerName: string,
+    reason: 'fraud' | 'counterfeit' | 'inappropriate' | 'wrong_price' | 'other',
+    comment: string
+  ) => {
+    if (!user) {
+      toast.error("Veuillez vous connecter pour signaler une annonce.");
+      throw new Error("User must be logged in to report a listing.");
+    }
+
+    const sanitizedComment = sanitizeText(comment);
+    const reportId = `rep-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const reporterName = user.displayName || user.email?.split('@')[0] || "Utilisateur";
+
+    const newReport: Report = {
+      id: reportId,
+      listingId,
+      listingTitle,
+      listingSellerId,
+      listingSellerName,
+      reporterId: user.uid,
+      reporterName,
+      reason,
+      comment: sanitizedComment,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      await setDoc(doc(db, 'reports', reportId).withConverter(reportConverter), newReport);
+      
+      // Update local query cache immediately (optimistic update)
+      queryClient.setQueryData<Report[]>(['reports'], (oldReports = []) => {
+        return [newReport, ...oldReports];
+      });
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      toast.success("Votre signalement a été soumis avec succès pour examen manuel. Merci d'aider à garder la communauté sûre !");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `reports/${reportId}`);
+    }
+  };
+
+  // Resolve a report (Dismiss or Suspend/Archive listing)
+  const resolveReport = async (
+    reportId: string,
+    listingId: string,
+    action: 'archive' | 'dismiss'
+  ) => {
+    if (!user) {
+      toast.error("Veuillez vous connecter pour résoudre un signalement.");
+      throw new Error("User must be logged in to resolve a report.");
+    }
+
+    try {
+      const reportRef = doc(db, 'reports', reportId).withConverter(reportConverter);
+      
+      if (action === 'archive') {
+        // Also archive the listing to remove it from marketplace
+        const listingRef = doc(db, 'listings', listingId).withConverter(listingConverter);
+        await updateDoc(listingRef, {
+          status: 'archived'
+        });
+        
+        // Mark report as resolved
+        await updateDoc(reportRef, {
+          status: 'resolved'
+        });
+        
+        toast.success("L'annonce a été suspendue/archivée et le signalement a été résolu.");
+      } else {
+        // Just dismiss the report
+        await updateDoc(reportRef, {
+          status: 'dismissed'
+        });
+        toast.success("Le signalement a été rejeté (classé sans suite).");
+      }
+      
+      // Invalidate queries to refresh state
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['listings'] });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `reports/${reportId}`);
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -881,15 +1065,20 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         unreadCount,
         savedListings,
         reviews,
+        reports,
+        loadingReports,
         toggleFavorite,
         addListing,
         incrementListingViews,
         markListingAsSold,
         deleteListing,
+        updateListingQuantityAndStatus,
         startNewChat,
         sendMessage,
         updateTypingStatus,
-        submitReview
+        submitReview,
+        submitReport,
+        resolveReport
       }}
     >
       {children}

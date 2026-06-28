@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast';
 import { CategoryType, CityType, ConditionType, isCategoryType, isCityType, isConditionType } from '../types';
 import { uploadListingImage } from '../lib/firebase';
 import tchadData from '../data/tchadData.json';
+import { hasForbiddenKeywords } from '../utils/security';
 
 interface ImageItem {
   id: string;
@@ -32,6 +33,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
   const [category, setCategory] = useState<CategoryType>('Véhicules');
   const [condition, setCondition] = useState<ConditionType>('excellent');
   const [price, setPrice] = useState<number | ''>('');
+  const [quantity, setQuantity] = useState<number>(1);
   const [description, setDescription] = useState('');
   const [city, setCity] = useState<CityType>("N'Djaména");
   const [selectedArrondissement, setSelectedArrondissement] = useState<string>(
@@ -146,8 +148,20 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
 
   const validateStep1 = () => {
     if (!title.trim()) return "Veuillez saisir un titre.";
+    
+    const titleForbidden = hasForbiddenKeywords(title);
+    if (titleForbidden) {
+      return `Le titre contient un mot inapproprié ou interdit : "${titleForbidden}". Veuillez le modifier.`;
+    }
+
     if (price === '' || price <= 0) return "Veuillez entrer un prix valide.";
     if (!description.trim()) return "Veuillez ajouter une description.";
+    
+    const descForbidden = hasForbiddenKeywords(description);
+    if (descForbidden) {
+      return `La description contient un mot inapproprié ou interdit : "${descForbidden}". Veuillez le modifier.`;
+    }
+
     return null;
   };
 
@@ -209,6 +223,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
         condition,
         sellerPhone,
         sellerWhatsApp: sellerWhatsApp || sellerPhone,
+        quantity: quantity,
       });
       toast.success(getTranslation(language, 'publishSuccess'));
       onClose();
@@ -366,6 +381,20 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* Quantity Field */}
+              <div>
+                <label className="block font-bold text-gray-700 uppercase tracking-wide mb-1.5">Quantité disponible</label>
+                <input 
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value !== '' ? Math.max(1, Number(e.target.value)) : 1)}
+                  placeholder="1"
+                  min="1"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-800 font-mono focus:border-blue-500 outline-none transition-all"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">Indiquez la quantité de stock disponible pour ce produit.</p>
               </div>
 
               {city === "N'Djaména" && (

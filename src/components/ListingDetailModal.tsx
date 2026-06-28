@@ -9,6 +9,7 @@ import {
   Star, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { ShareModal } from './ShareModal';
+import { ReportListingButton } from './ReportListingButton';
 
 interface ListingDetailModalProps {
   listing: Listing;
@@ -153,7 +154,30 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
               <span className="flex items-center space-x-1 rounded-full bg-gray-100 px-3 py-1 text-[10px] font-bold text-gray-700 uppercase tracking-wider font-mono border border-gray-200">
                 <span>{getTranslation(language, 'condition')}: {getConditionLabel(listing.condition)}</span>
               </span>
+              {listing.status === 'out_of_stock' ? (
+                <span className="flex items-center space-x-1 rounded-full bg-red-50 px-3 py-1 text-[10px] font-bold text-red-700 uppercase tracking-wider font-mono border border-red-100 animate-pulse">
+                  <span>Rupture de stock</span>
+                </span>
+              ) : listing.status === 'sold' ? (
+                <span className="flex items-center space-x-1 rounded-full bg-gray-100 px-3 py-1 text-[10px] font-bold text-gray-500 uppercase tracking-wider font-mono border border-gray-200">
+                  <span>Vendu</span>
+                </span>
+              ) : (
+                listing.quantity !== undefined && (
+                  <span className={`flex items-center space-x-1 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider font-mono border ${listing.quantity <= 3 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                    <span>Stock: {listing.quantity} {listing.quantity <= 3 ? '(Bientôt épuisé)' : ''}</span>
+                  </span>
+                )
+              )}
             </div>
+
+            {/* Out of Stock Notice */}
+            {listing.status === 'out_of_stock' && (
+              <div className="mt-4 rounded-2xl bg-amber-50/70 border border-amber-100 p-3.5 text-xs font-semibold text-amber-800 flex items-center space-x-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping shrink-0" />
+                <span>Ce produit est actuellement en rupture de stock. N'hésitez pas à contacter le vendeur pour connaître la date de réapprovisionnement.</span>
+              </div>
+            )}
 
             {/* Title & Location */}
             <h2 id="modal-title" className="mt-4 text-xl sm:text-2xl font-black text-gray-900 tracking-tight font-sans">
@@ -212,6 +236,14 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
               <p id="modal-desc" className="mt-2.5 text-sm leading-relaxed text-gray-600 whitespace-pre-line font-sans">
                 {listing.description}
               </p>
+              
+              {/* Report Listing Trigger */}
+              <ReportListingButton 
+                listingId={listing.id}
+                listingTitle={listing.title}
+                listingSellerId={listing.sellerId}
+                listingSellerName={listing.sellerName}
+              />
             </div>
 
             {/* Seller profile card */}

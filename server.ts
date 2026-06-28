@@ -4,6 +4,9 @@ import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+import { validateAndSanitizeListing } from './src/utils/security';
+import { runFirestoreBackup } from './src/utils/backupService';
 
 // Load Firebase configuration
 const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
@@ -22,6 +25,87 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  // API Route: Securely publish a new listing with strict rate limiting and Zod validation
+  app.post("/api/listings", async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Veuillez vous connecter pour publier une annonce." });
+    }
+
+    const idToken = authHeader.split("Bearer ")[1];
+    try {
+      // 1. Verify user's ID token using Firebase Admin SDK
+      const authAdmin = getAuth(appAdmin);
+      const decodedToken = await authAdmin.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const sellerName = decodedToken.name || decodedToken.email?.split('@')[0] || "Vendeur";
+
+      // 2. Perform Rate Limiting Check (Max 5 listings in last 24 hours)
+      const userListingsSnapshot = await firestoreDb.collection("listings")
+        .where("sellerId", "==", uid)
+        .get();
+
+      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+      const recentListings = userListingsSnapshot.docs.filter(doc => {
+        const data = doc.data();
+        const createdAt = data.createdAt ? new Date(data.createdAt).getTime() : 0;
+        return createdAt >= oneDayAgo && data.status !== 'archived';
+      });
+
+      const DAILY_LIMIT = 5;
+      if (recentListings.length >= DAILY_LIMIT) {
+        return res.status(429).json({ 
+          error: `Limite de publication quotidienne atteinte. Vous ne pouvez publier que ${DAILY_LIMIT} annonces par 24 heures afin de préserver la qualité de la plateforme et d'éviter le spam.` 
+        });
+      }
+
+      // 3. Zero-Trust Schema Validation and Sanitization
+      const rawData = req.body;
+      const validatedListingData = validateAndSanitizeListing(rawData);
+
+      // 4. Create listing document
+      const newDocRef = firestoreDb.collection("listings").doc();
+      const newListing = {
+        ...validatedListingData,
+        id: newDocRef.id,
+        sellerId: uid,
+        sellerName: sellerName,
+        sellerIsVerified: false,
+        sellerResponseTime: 'Répond rapidement',
+        status: 'active',
+        viewsCount: 0,
+        createdAt: new Date().toISOString()
+      };
+
+      await newDocRef.set(newListing);
+
+      console.log(`User ${uid} successfully published listing ${newDocRef.id} with rate-limiting check.`);
+      return res.json({ success: true, listing: newListing });
+    } catch (error: any) {
+      // Rule 2: Log raw technical error to console and return clean response
+      console.error("Error in secure rate-limited listing publication API:", error);
+      
+      const isValidationError = error.message && (
+        error.message.includes("Le titre") || 
+        error.message.includes("La description") || 
+        error.message.includes("Le prix") || 
+        error.message.includes("Veuillez fournir") ||
+        error.message.includes("Aucune image") ||
+        error.message.includes("Numéro de téléphone")
+      );
+      
+      const isAuthError = error.code && error.code.startsWith("auth/");
+      
+      const message = isValidationError 
+        ? error.message 
+        : isAuthError 
+          ? "Session expirée. Veuillez vous reconnecter."
+          : "Une erreur inattendue est survenue lors de la publication de votre annonce.";
+
+      return res.status(isValidationError ? 400 : isAuthError ? 401 : 500).json({ error: message });
+    }
+  });
 
   // API Route: Securely increment listing views
   app.post("/api/listings/:id/increment-views", async (req, res) => {
@@ -202,6 +286,55 @@ async function startServer() {
       return res.status(500).json({ error: "An unexpected error occurred while sending push notification." });
     }
   });
+
+  // API Route: Get history of Firestore backups from Cloud Storage / Firestore logs
+  app.get("/api/admin/backups", async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Veuillez vous connecter pour voir l'historique des sauvegardes." });
+    }
+
+    const idToken = authHeader.split("Bearer ")[1];
+    try {
+      const authAdmin = getAuth(appAdmin);
+      await authAdmin.verifyIdToken(idToken); // Ensure the user is logged in
+      
+      const backupsSnapshot = await firestoreDb.collection("backup_history")
+        .orderBy("timestamp", "desc")
+        .limit(30)
+        .get();
+
+      const backups = backupsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      return res.json({ success: true, backups });
+    } catch (error) {
+      console.error("Error fetching backups history:", error);
+      return res.status(500).json({ error: "Impossible de récupérer l'historique des sauvegardes." });
+    }
+  });
+
+  // API Route: Manually trigger a Firestore backup
+  app.post("/api/admin/backups", async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Veuillez vous connecter pour lancer une sauvegarde." });
+    }
+
+    const idToken = authHeader.split("Bearer ")[1];
+    try {
+      const authAdmin = getAuth(appAdmin);
+      const decodedToken = await authAdmin.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const userName = decodedToken.name || decodedToken.email?.split('@')[0] || "Administrateur";
+
+      const result = await runFirestoreBackup(`Manuel (${userName} - ${uid})`);
+      return res.json(result);
+    } catch (error: any) {
+      console.error("Error triggering manual backup:", error);
+      return res.status(500).json({ error: error.message || "Erreur lors de la création de la sauvegarde." });
+    }
+  });
+
+
 
   // Serve Vite app or static files
   if (process.env.NODE_ENV !== "production") {

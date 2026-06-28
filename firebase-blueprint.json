@@ -32,6 +32,14 @@
             "type": "string"
           },
           "description": "Firebase Cloud Messaging registration tokens for real-time notifications"
+        },
+        "mfaEnabled": {
+          "type": "boolean",
+          "description": "Whether Multi-factor authentication is enabled"
+        },
+        "mfaPhone": {
+          "type": "string",
+          "description": "Enrolled MFA phone number"
         }
       },
       "required": ["uid", "name", "email", "createdAt"]
@@ -93,10 +101,14 @@
         },
         "status": {
           "type": "string",
-          "enum": ["active", "sold", "archived"]
+          "enum": ["active", "sold", "archived", "out_of_stock"]
         },
         "viewsCount": {
           "type": "number"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Available quantity of the product"
         }
       },
       "required": ["id", "title", "description", "price", "category", "city", "sellerId", "sellerName", "createdAt", "status"]
@@ -209,6 +221,50 @@
         }
       },
       "required": ["id", "sellerId", "buyerId", "buyerName", "rating", "comment", "listingId", "listingTitle", "createdAt"]
+    },
+    "report": {
+      "title": "Report",
+      "description": "A fraud or suspect ad report submitted by a user",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "listingId": {
+          "type": "string"
+        },
+        "listingTitle": {
+          "type": "string"
+        },
+        "listingSellerId": {
+          "type": "string"
+        },
+        "listingSellerName": {
+          "type": "string"
+        },
+        "reporterId": {
+          "type": "string"
+        },
+        "reporterName": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["fraud", "counterfeit", "inappropriate", "wrong_price", "other"]
+        },
+        "comment": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "resolved", "dismissed"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "listingId", "listingTitle", "listingSellerId", "listingSellerName", "reporterId", "reporterName", "reason", "comment", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -231,6 +287,10 @@
     "/reviews/{reviewId}": {
       "schema": "review",
       "description": "Seller reviews and ratings"
+    },
+    "/reports/{reportId}": {
+      "schema": "report",
+      "description": "Suspect listing fraud reports"
     }
   }
 }

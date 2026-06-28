@@ -96,6 +96,15 @@ export const ListingCard: React.FC<ListingCardProps> = React.memo(({ listing, on
             </span>
           </div>
         )}
+
+        {/* Out of stock overlay */}
+        {listing.status === 'out_of_stock' && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-xs z-10" aria-label="Rupture de stock">
+            <span className="rounded-xl border-2 border-amber-500 bg-amber-500/10 px-4 py-2 text-[10px] font-black text-amber-500 uppercase tracking-widest rotate-12 text-center">
+              Rupture de stock
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Details info */}
@@ -108,6 +117,11 @@ export const ListingCard: React.FC<ListingCardProps> = React.memo(({ listing, on
           <span className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${conditionStyle.bg}`}>
             {conditionStyle.text}
           </span>
+          {listing.status === 'active' && listing.quantity !== undefined && (
+            <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold font-mono ${listing.quantity <= 3 ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-gray-100 text-gray-600 border border-gray-200/50'}`}>
+              Stock: {listing.quantity}
+            </span>
+          )}
         </div>
 
         {/* Listing Title */}

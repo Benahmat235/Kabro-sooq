@@ -9,7 +9,7 @@ interface MyAdsTabProps {
 }
 
 export const MyAdsTab: React.FC<MyAdsTabProps> = ({ onPublishClick }) => {
-  const { language, user, listings, markListingAsSold, deleteListing } = useApp();
+  const { language, user, listings, markListingAsSold, deleteListing, updateListingQuantityAndStatus } = useApp();
 
   const myPublishedListings = user 
     ? listings.filter(l => l.sellerId === user.uid && l.status !== 'archived')
@@ -70,6 +70,16 @@ export const MyAdsTab: React.FC<MyAdsTabProps> = ({ onPublishClick }) => {
                         Vendu
                       </span>
                     )}
+                    {pubListing.status === 'out_of_stock' && (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 uppercase tracking-wide">
+                        Rupture de stock
+                      </span>
+                    )}
+                    {pubListing.status === 'active' && (
+                      <span className="rounded bg-green-100 px-1.5 py-0.5 text-[9px] font-bold text-green-700 uppercase tracking-wide">
+                        En Stock
+                      </span>
+                    )}
                     <span className="flex items-center space-x-1 text-[10px] text-gray-400 font-mono">
                       <Eye className="h-3 w-3" />
                       <span>{pubListing.viewsCount} vues</span>
@@ -78,26 +88,80 @@ export const MyAdsTab: React.FC<MyAdsTabProps> = ({ onPublishClick }) => {
                 </div>
               </div>
 
+              {/* Quantity management */}
+              <div className="mt-3 flex items-center justify-between rounded-xl bg-gray-50 p-2 text-xs">
+                <span className="font-semibold text-gray-500 font-sans">Quantité disponible :</span>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => {
+                      const currentQty = pubListing.quantity !== undefined ? pubListing.quantity : 1;
+                      const newQty = Math.max(0, currentQty - 1);
+                      const newStatus = newQty === 0 ? 'out_of_stock' : pubListing.status;
+                      updateListingQuantityAndStatus(pubListing.id, newQty, newStatus === 'sold' ? 'active' : newStatus);
+                    }}
+                    disabled={pubListing.status === 'sold'}
+                    className="flex h-6 w-6 items-center justify-center rounded-md bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-50 select-none font-bold"
+                  >
+                    -
+                  </button>
+                  <span className="font-mono font-bold text-gray-800 w-6 text-center">
+                    {pubListing.quantity !== undefined ? pubListing.quantity : 1}
+                  </span>
+                  <button
+                    onClick={() => {
+                      const currentQty = pubListing.quantity !== undefined ? pubListing.quantity : 1;
+                      const newQty = currentQty + 1;
+                      const newStatus = pubListing.status === 'out_of_stock' ? 'active' : pubListing.status;
+                      updateListingQuantityAndStatus(pubListing.id, newQty, newStatus === 'sold' ? 'active' : newStatus);
+                    }}
+                    disabled={pubListing.status === 'sold'}
+                    className="flex h-6 w-6 items-center justify-center rounded-md bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-50 select-none font-bold"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
               {/* Action buttons */}
-              <div className="mt-4 grid grid-cols-2 gap-2 pt-4 border-t border-gray-50">
-                <button
-                  onClick={() => markListingAsSold(pubListing.id)}
-                  disabled={pubListing.status === 'sold'}
-                  className="flex items-center justify-center space-x-1.5 rounded-xl bg-gray-50 px-3 py-2 text-[11px] font-bold text-gray-600 transition-colors hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <CheckSquare className="h-3.5 w-3.5" />
-                  <span>Marquer vendu</span>
-                </button>
+              <div className="mt-4 space-y-2 pt-4 border-t border-gray-50">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => markListingAsSold(pubListing.id)}
+                    disabled={pubListing.status === 'sold'}
+                    className="flex items-center justify-center space-x-1.5 rounded-xl bg-gray-50 px-3 py-2 text-[11px] font-bold text-gray-600 transition-colors hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <CheckSquare className="h-3.5 w-3.5" />
+                    <span>Marquer vendu</span>
+                  </button>
+
+                  {pubListing.status === 'out_of_stock' ? (
+                    <button
+                      onClick={() => updateListingQuantityAndStatus(pubListing.id, 1, 'active')}
+                      className="flex items-center justify-center space-x-1.5 rounded-xl bg-green-50 px-3 py-2 text-[11px] font-bold text-green-700 transition-colors hover:bg-green-100"
+                    >
+                      <span>Remettre en stock</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => updateListingQuantityAndStatus(pubListing.id, 0, 'out_of_stock')}
+                      disabled={pubListing.status === 'sold'}
+                      className="flex items-center justify-center space-x-1.5 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span>Rupture de stock</span>
+                    </button>
+                  )}
+                </div>
+
                 <button
                   onClick={() => {
                     if (confirm("Voulez-vous vraiment supprimer cette annonce ?")) {
                       deleteListing(pubListing.id);
                     }
                   }}
-                  className="flex items-center justify-center space-x-1.5 rounded-xl bg-red-50 px-3 py-2 text-[11px] font-bold text-red-600 transition-colors hover:bg-red-100"
+                  className="w-full flex items-center justify-center space-x-1.5 rounded-xl bg-red-50 px-3 py-2 text-[11px] font-bold text-red-600 transition-colors hover:bg-red-100"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                  <span>Supprimer</span>
+                  <span>Supprimer l'annonce</span>
                 </button>
               </div>
             </div>

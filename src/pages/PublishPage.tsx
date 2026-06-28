@@ -14,6 +14,7 @@ interface ImageItem {
   file?: File;
 }
 import tchadData from '../data/tchadData.json';
+import { hasForbiddenKeywords } from '../utils/security';
 import { 
   Camera, Plus, Check, ChevronLeft, ChevronRight, 
   UploadCloud, AlertCircle, Trash2, ArrowLeft, User
@@ -145,8 +146,20 @@ export const PublishPage: React.FC = () => {
 
   const validateStep1 = () => {
     if (!title.trim()) return "Veuillez saisir un titre.";
+    
+    const titleForbidden = hasForbiddenKeywords(title);
+    if (titleForbidden) {
+      return `Le titre contient un mot inapproprié ou interdit : "${titleForbidden}". Veuillez le modifier.`;
+    }
+
     if (price === '' || price <= 0) return "Veuillez entrer un prix valide.";
     if (!description.trim()) return "Veuillez ajouter une description.";
+    
+    const descForbidden = hasForbiddenKeywords(description);
+    if (descForbidden) {
+      return `La description contient un mot inapproprié ou interdit : "${descForbidden}". Veuillez le modifier.`;
+    }
+
     return null;
   };
 

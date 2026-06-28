@@ -3,6 +3,9 @@ import { useApp } from '../context/AppContext';
 import { getTranslation } from '../utils/translations';
 import { loginWithGoogle, logout } from '../lib/firebase';
 import { User } from 'lucide-react';
+import { MfaSettings } from './MfaSettings';
+import { BackupManager } from './BackupManager';
+import { ReportQueue } from './ReportQueue';
 
 export const AccountTab: React.FC = () => {
   const { language, user, listings, savedListings } = useApp();
@@ -68,6 +71,15 @@ export const AccountTab: React.FC = () => {
               <span className="font-mono text-gray-600 text-[10px] truncate max-w-[180px]">{user.uid}</span>
             </div>
           </div>
+
+          {/* MFA Settings */}
+          <MfaSettings />
+
+          {/* Moderation Queue */}
+          <ReportQueue />
+
+          {/* Backup Management (Cloud Storage) */}
+          <BackupManager />
 
           {/* Logout Button */}
           <button

@@ -6,7 +6,7 @@ export type CityType = string;
 
 export type ConditionType = "new" | "excellent" | "good" | "used";
 
-export type ListingStatusType = "active" | "sold" | "archived";
+export type ListingStatusType = "active" | "sold" | "archived" | "out_of_stock";
 
 export type LanguageType = "FR" | "AR" | "EN";
 
@@ -30,6 +30,7 @@ export interface Listing {
   createdAt: string; // Timestamp or string
   status: ListingStatusType;
   viewsCount: number;
+  quantity?: number;
 }
 
 export interface UserProfile {
@@ -47,6 +48,8 @@ export interface FirestoreUserDoc {
   createdAt: string;
   savedListings?: string[];
   fcmTokens?: string[];
+  mfaEnabled?: boolean;
+  mfaPhone?: string;
 }
 
 export interface PublicUserProfileDTO {
@@ -99,6 +102,20 @@ export interface Review {
   listingId: string;
   listingTitle: string;
   createdAt: string; // ISO datetime string
+}
+
+export interface Report {
+  id: string;
+  listingId: string;
+  listingTitle: string;
+  listingSellerId: string;
+  listingSellerName: string;
+  reporterId: string;
+  reporterName: string;
+  reason: 'fraud' | 'counterfeit' | 'inappropriate' | 'wrong_price' | 'other';
+  comment: string;
+  status: 'pending' | 'resolved' | 'dismissed';
+  createdAt: string;
 }
 
 export const isCategoryType = (value: string): value is CategoryType => {

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { CategoryType, CityType, ConditionType, Listing, Message } from '../types';
 import { CITIES } from '../data/mockData';
 
@@ -87,6 +88,26 @@ const ALLOWED_CATEGORIES: CategoryType[] = ["Véhicules", "Immobilier", "Télép
 const ALLOWED_CITIES: CityType[] = CITIES;
 const ALLOWED_CONDITIONS: ConditionType[] = ["new", "excellent", "good", "used"];
 
+export const FORBIDDEN_KEYWORDS = [
+  "arnaque", "scam", "drogue", "weed", "cocaine", "heroine", "cannabis", 
+  "hacker", "hack", "pirater", "arme", "weapons", "violence", "casino", 
+  "viagra", "porno", "sexe", "sex", "terrorisme", "terroriste"
+];
+
+/**
+ * Checks if a string contains any forbidden keywords.
+ * Returns the matching forbidden word if found, or null otherwise.
+ */
+export function hasForbiddenKeywords(text: string): string | null {
+  const lower = text.toLowerCase();
+  for (const word of FORBIDDEN_KEYWORDS) {
+    if (lower.includes(word)) {
+      return word;
+    }
+  }
+  return null;
+}
+
 export interface RawListingInput {
   title?: unknown;
   description?: unknown;
@@ -99,7 +120,99 @@ export interface RawListingInput {
   images?: unknown;
   arrondissement?: unknown;
   quartier?: unknown;
+  quantity?: unknown;
 }
+
+/**
+ * Zod schema for client-side and server-side listing validation.
+ */
+export const listingSchema = z.object({
+  title: z.string()
+    .min(5, { message: "Le titre doit contenir au moins 5 caractères." })
+    .max(80, { message: "Le titre ne doit pas dépasser 80 caractères." })
+    .refine(val => !hasForbiddenKeywords(val), {
+      message: "Le titre contient des mots-clés inappropriés ou interdits (ex: arnaque, drogue, arme)."
+    }),
+    
+  description: z.string()
+    .min(10, { message: "La description doit contenir au moins 10 caractères." })
+    .max(1500, { message: "La description ne doit pas dépasser 1500 caractères." })
+    .refine(val => !hasForbiddenKeywords(val), {
+      message: "La description contient des mots-clés inappropriés ou interdits (ex: arnaque, drogue, arme)."
+    }),
+    
+  price: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined) ? NaN : Number(val),
+    z.number()
+      .positive({ message: "Le prix doit être un nombre positif." })
+      .max(99999999, { message: "Le prix doit être inférieur à 100 000 000." })
+  ),
+  
+  category: z.string()
+    .refine((val) => ALLOWED_CATEGORIES.includes(val as CategoryType), {
+      message: "Catégorie invalide."
+    })
+    .transform(val => val as CategoryType),
+    
+  city: z.string()
+    .refine((val) => ALLOWED_CITIES.includes(val as CityType), {
+      message: "Ville invalide."
+    })
+    .transform(val => val as CityType),
+    
+  condition: z.string()
+    .refine((val) => ALLOWED_CONDITIONS.includes(val as ConditionType), {
+      message: "État/Condition invalide."
+    })
+    .transform(val => val as ConditionType),
+    
+  sellerPhone: z.string()
+    .transform(v => typeof v === 'string' ? v.trim() : '')
+    .refine((v) => {
+      const cleanPhone = v.replace(/[^\d+-\s]/g, '');
+      return cleanPhone.length >= 6 && cleanPhone.length <= 20;
+    }, { message: "Numéro de téléphone invalide. Il doit contenir entre 6 et 20 caractères valides." })
+    .transform(v => v.replace(/[^\d+-\s]/g, '')),
+    
+  sellerWhatsApp: z.string().optional().or(z.literal(''))
+    .transform(v => typeof v === 'string' ? v.trim() : '')
+    .refine((v) => {
+      if (!v) return true;
+      const cleanPhone = v.replace(/[^\d+-\s]/g, '');
+      return cleanPhone.length >= 6 && cleanPhone.length <= 20;
+    }, { message: "Numéro de téléphone WhatsApp invalide. Il doit contenir entre 6 et 20 caractères valides." })
+    .transform(v => v ? v.replace(/[^\d+-\s]/g, '') : undefined),
+    
+  images: z.array(z.unknown())
+    .min(1, { message: "Veuillez fournir au moins une image." })
+    .transform((imgs) => imgs.map(img => validateAndSanitizeUrl(img)).filter(img => img !== ''))
+    .refine((imgs) => imgs.length > 0, { message: "Aucune image valide fournie." }),
+    
+  arrondissement: z.string().optional()
+    .transform(v => v ? sanitizeText(v, 100) : undefined),
+    
+  quartier: z.string().optional()
+    .transform(v => v ? sanitizeText(v, 100) : undefined),
+    
+  quantity: z.preprocess(
+    (val) => val === undefined ? 1 : Number(val),
+    z.number()
+      .int()
+      .positive({ message: "La quantité doit être supérieure à 0." })
+      .default(1)
+  ).optional()
+});
+
+/**
+ * Zod schema for chat message text.
+ */
+export const messageSchema = z.string()
+  .min(1, { message: "Le message ne peut pas être vide." })
+  .transform(text => sanitizeText(text, 2000))
+  .refine(text => text !== '', { message: "Contenu du message invalide ou vide après nettoyage." })
+  .refine(text => !hasForbiddenKeywords(text), {
+    message: "Le message contient des mots inappropriés ou interdits."
+  });
 
 /**
  * Validates and sanitizes all fields of a Listing to enforce Zero-Trust guidelines before Firestore write.
@@ -111,82 +224,33 @@ export function validateAndSanitizeListing(
     throw new Error("Données de publication invalides.");
   }
 
-  const input = raw as RawListingInput;
-
-  // 1. Title Validation
-  const title = sanitizeText(typeof input.title === 'string' ? input.title : '', 80);
-  if (!title || title.length < 5) {
-    throw new Error("Le titre doit contenir entre 5 et 80 caractères.");
+  const result = listingSchema.safeParse(raw);
+  if (!result.success) {
+    const firstError = result.error.issues[0];
+    throw new Error(firstError.message);
   }
 
-  // 2. Description Validation
-  const description = sanitizeText(typeof input.description === 'string' ? input.description : '', 1500);
-  if (!description || description.length < 10) {
-    throw new Error("La description doit contenir entre 10 et 1500 caractères.");
-  }
+  const data = result.data;
 
-  // 3. Price Validation (Positive finite integer or decimal)
-  const price = Number(input.price);
-  if (isNaN(price) || !isFinite(price) || price <= 0 || price > 99999999) {
-    throw new Error("Le prix doit être un nombre positif inférieur à 100 000 000.");
-  }
-
-  // 4. Category Validation
-  const category = input.category as CategoryType;
-  if (!ALLOWED_CATEGORIES.includes(category)) {
-    throw new Error("Catégorie invalide.");
-  }
-
-  // 5. City Validation
-  const city = input.city as CityType;
-  if (!ALLOWED_CITIES.includes(city)) {
-    throw new Error("Ville invalide.");
-  }
-
-  // 6. Condition Validation
-  const condition = input.condition as ConditionType;
-  if (!ALLOWED_CONDITIONS.includes(condition)) {
-    throw new Error("État/Condition invalide.");
-  }
-
-  // 7. Seller Contacts Validation
-  const sellerPhone = validateAndSanitizePhone(typeof input.sellerPhone === 'string' ? input.sellerPhone : '');
-  const sellerWhatsApp = typeof input.sellerWhatsApp === 'string' && input.sellerWhatsApp 
-    ? validateAndSanitizePhone(input.sellerWhatsApp) 
-    : sellerPhone;
-
-  // 8. Images Validation
-  if (!Array.isArray(input.images) || input.images.length === 0) {
-    throw new Error("Veuillez fournir au moins une image.");
-  }
-  const images = (input.images as unknown[])
-    .map((img: unknown) => validateAndSanitizeUrl(img))
-    .filter((img: string) => img !== '');
-
-  if (images.length === 0) {
-    throw new Error("Aucune image valide fournie.");
-  }
-
-  // 9. Arrondissement & Quartier validation for N'Djaména
-  const arrondissement = typeof input.arrondissement === 'string' && input.arrondissement 
-    ? sanitizeText(input.arrondissement, 100) 
-    : undefined;
-  const quartier = typeof input.quartier === 'string' && input.quartier 
-    ? sanitizeText(input.quartier, 100) 
-    : undefined;
+  // Sanitize the text fields for standard safety post Zod parsing
+  const title = sanitizeText(data.title, 80);
+  const description = sanitizeText(data.description, 1500);
+  const sellerPhone = data.sellerPhone;
+  const sellerWhatsApp = data.sellerWhatsApp || sellerPhone;
 
   return {
     title,
     description,
-    price,
-    category,
-    city,
-    arrondissement,
-    quartier,
-    condition,
+    price: data.price,
+    category: data.category,
+    city: data.city,
+    arrondissement: data.arrondissement,
+    quartier: data.quartier,
+    condition: data.condition,
     sellerPhone,
     sellerWhatsApp,
-    images
+    images: data.images,
+    quantity: data.quantity ?? 1
   };
 }
 
@@ -194,12 +258,9 @@ export function validateAndSanitizeListing(
  * Validates and sanitizes chat messages.
  */
 export function validateAndSanitizeMessageText(text: unknown): string {
-  if (typeof text !== 'string' || !text.trim()) {
-    throw new Error("Le message ne peut pas être vide.");
+  const result = messageSchema.safeParse(text);
+  if (!result.success) {
+    throw new Error(result.error.issues[0].message);
   }
-  const sanitized = sanitizeText(text, 2000);
-  if (!sanitized) {
-    throw new Error("Contenu du message invalide ou vide après nettoyage.");
-  }
-  return sanitized;
+  return result.data;
 }

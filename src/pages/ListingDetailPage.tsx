@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { ImageCarousel } from '../components/ImageCarousel';
 import { ShareModal } from '../components/ShareModal';
+import { ReportListingButton } from '../components/ReportListingButton';
 
 export const ListingDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -195,6 +196,14 @@ export const ListingDetailPage: React.FC = () => {
               <p className="mt-2 text-sm leading-relaxed text-gray-600 whitespace-pre-line">
                 {listing.description}
               </p>
+              
+              {/* Report Listing Trigger */}
+              <ReportListingButton 
+                listingId={listing.id}
+                listingTitle={listing.title}
+                listingSellerId={listing.sellerId}
+                listingSellerName={listing.sellerName}
+              />
             </div>
 
             {/* Seller Info Card */}

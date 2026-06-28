@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { getTranslation } from '../utils/translations';
 import { Send, ArrowLeft, Loader2, CheckCircle2, Check, CheckCheck, Smile, Star } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { hasForbiddenKeywords } from '../utils/security';
 
 export const ChatRoom: React.FC = () => {
   const { 
@@ -75,6 +76,12 @@ export const ChatRoom: React.FC = () => {
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!text.trim() || !activeChatId || sending) return;
+
+    const forbiddenWord = hasForbiddenKeywords(text);
+    if (forbiddenWord) {
+      toast.error(`Votre message contient un mot inapproprié ou interdit ("${forbiddenWord}").`);
+      return;
+    }
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
