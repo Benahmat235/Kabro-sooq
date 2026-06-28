@@ -85,7 +85,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
         <button 
           onClick={onClose}
           aria-label="Fermer les détails de l'annonce"
-          className="absolute top-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="absolute top-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
           <X className="h-5 w-5" aria-hidden="true" />
         </button>
@@ -102,6 +102,8 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
                 alt={`${listing.title} - image ${activeImageIdx + 1} sur ${imagesList.length}`} 
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
+                loading="lazy"
+                decoding="async"
               />
               
               {/* Image Navigation Arrows */}
@@ -110,14 +112,14 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
                   <button 
                     onClick={() => setActiveImageIdx(prev => prev === 0 ? imagesList.length - 1 : prev - 1)}
                     aria-label="Image précédente"
-                    className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 backdrop-blur-md text-white hover:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 backdrop-blur-md text-white hover:bg-black/50 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   >
                     <ChevronLeft className="h-5 w-5" aria-hidden="true" />
                   </button>
                   <button 
                     onClick={() => setActiveImageIdx(prev => prev === imagesList.length - 1 ? 0 : prev + 1)}
                     aria-label="Image suivante"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 backdrop-blur-md text-white hover:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 backdrop-blur-md text-white hover:bg-black/50 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   >
                     <ChevronRight className="h-5 w-5" aria-hidden="true" />
                   </button>
@@ -135,7 +137,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
                     aria-selected={activeImageIdx === idx}
                     aria-label={`Afficher l'image ${idx + 1}`}
                     onClick={() => setActiveImageIdx(idx)}
-                    className={`h-2.5 w-2.5 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-orange-500 ${activeImageIdx === idx ? 'bg-orange-500 w-5' : 'bg-white/50'}`}
+                    className={`h-2.5 w-2.5 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 ${activeImageIdx === idx ? 'bg-primary-500 w-5' : 'bg-white/50'}`}
                   />
                 ))}
               </div>
@@ -143,11 +145,11 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
           </div>
 
           {/* Right Panel: Complete Details */}
-          <div className="w-full md:w-1/2 flex flex-col bg-white overflow-y-auto h-full p-6 sm:p-8">
+          <div className="w-full md:w-1/2 flex flex-col bg-white md:overflow-y-auto md:h-full p-6 sm:p-8">
             
             {/* Meta Tags */}
             <div className="flex flex-wrap gap-2 items-center">
-              <span className="flex items-center space-x-1 rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-700 uppercase tracking-wider font-mono border border-blue-100">
+              <span className="flex items-center space-x-1 rounded-full bg-primary-50 px-3 py-1 text-[10px] font-bold text-primary-700 uppercase tracking-wider font-mono border border-primary-100">
                 <Tag className="h-3 w-3" aria-hidden="true" />
                 <span>{listing.category}</span>
               </span>
@@ -186,7 +188,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
             
             <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs font-semibold text-gray-500">
               <div className="flex items-center space-x-1 text-gray-600">
-                <MapPin className="h-4 w-4 text-blue-600" aria-hidden="true" />
+                <MapPin className="h-4 w-4 text-primary-600" aria-hidden="true" />
                 <span>{listing.city}{listing.arrondissement ? ` - ${listing.arrondissement}` : ''}{listing.quartier ? ` (${listing.quartier})` : ''}</span>
               </div>
               <div className="flex items-center space-x-1 font-mono text-gray-600">
@@ -200,12 +202,12 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
             </div>
 
             {/* Price section */}
-            <div className="mt-5 rounded-2xl bg-blue-50/50 border border-blue-100/50 p-4 flex items-center justify-between">
+            <div className="mt-5 rounded-2xl bg-primary-50/50 border border-primary-100/50 p-4 flex items-center justify-between">
               <div>
-                <p className="text-[10px] uppercase font-bold tracking-wider text-blue-600 font-mono">
+                <p className="text-[10px] uppercase font-bold tracking-wider text-primary-600 font-mono">
                   {getTranslation(language, 'price')}
                 </p>
-                <p className="text-xl sm:text-2xl font-black text-blue-600 font-mono leading-tight tracking-tight">
+                <p className="text-xl sm:text-2xl font-black text-primary-600 font-mono leading-tight tracking-tight">
                   {formatPrice(listing.price)}
                 </p>
               </div>
@@ -223,7 +225,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
                 <button 
                   onClick={handleShare}
                   aria-label="Partager cette annonce"
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
                   <Share2 className="h-4 w-4" aria-hidden="true" />
                 </button>
@@ -251,14 +253,14 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
               <p className="text-[10px] uppercase font-bold tracking-wider text-gray-500 mb-3">{getTranslation(language, 'aboutSeller')}</p>
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-3.5">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white text-base font-bold shrink-0 shadow-md shadow-blue-100" aria-hidden="true">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-600 text-white text-base font-bold shrink-0 shadow-md shadow-primary-100" aria-hidden="true">
                     {listing.sellerName.slice(0, 2).toUpperCase()}
                   </div>
                   <div>
                     <div className="flex items-center space-x-1.5">
                       <span className="font-bold text-gray-800 text-sm leading-none">{listing.sellerName}</span>
                       {listing.sellerIsVerified && (
-                        <CheckCircle2 className="h-4 w-4 fill-blue-600 text-white" aria-hidden="true" />
+                        <CheckCircle2 className="h-4 w-4 fill-primary-600 text-white" aria-hidden="true" />
                       )}
                     </div>
                     <div className="mt-1 flex items-center space-x-1.5 text-xs text-gray-600 font-semibold">
@@ -293,7 +295,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
                   <button
                     type="button"
                     onClick={() => setShowSellerReviews(!showSellerReviews)}
-                    className="flex items-center space-x-1 text-[11px] font-bold text-blue-600 hover:text-blue-700 bg-white border border-gray-150 px-2.5 py-1 rounded-lg shadow-3xs"
+                    className="flex items-center space-x-1 text-[11px] font-bold text-primary-600 hover:text-primary-700 bg-white border border-gray-150 px-2.5 py-1 rounded-lg shadow-3xs"
                   >
                     <span>Avis</span>
                     {showSellerReviews ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
@@ -334,7 +336,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
               {/* Call CTA */}
               <a 
                 href={`tel:${cleanPhone}`}
-                className="flex flex-col items-center justify-center rounded-xl border border-blue-200 bg-blue-50/20 py-2.5 text-xs font-bold text-blue-600 hover:bg-blue-50 transition-colors"
+                className="flex flex-col items-center justify-center rounded-xl border border-primary-200 bg-primary-50/20 py-2.5 text-xs font-bold text-primary-600 hover:bg-primary-50 transition-colors"
                 id="call-btn"
               >
                 <Phone className="h-4 w-4 mb-1" />
@@ -357,7 +359,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({ listing,
               <button 
                 onClick={handleStartChat}
                 disabled={chatLoading}
-                className="flex flex-col items-center justify-center rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 shadow-md shadow-blue-100"
+                className="flex flex-col items-center justify-center rounded-xl bg-primary-600 py-2.5 text-xs font-bold text-white hover:bg-primary-700 active:scale-95 transition-all disabled:opacity-50 shadow-md shadow-primary-100"
                 id="internal-chat-btn"
               >
                 <MessageSquare className="h-4 w-4 mb-1" />

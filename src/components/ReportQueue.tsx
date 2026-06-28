@@ -29,7 +29,7 @@ export const ReportQueue: React.FC = () => {
       case 'fraud': return "bg-rose-50 text-rose-700 border-rose-100";
       case 'counterfeit': return "bg-purple-50 text-purple-700 border-purple-100";
       case 'wrong_price': return "bg-amber-50 text-amber-700 border-amber-100";
-      default: return "bg-blue-50 text-blue-700 border-blue-100";
+      default: return "bg-primary-50 text-primary-700 border-primary-100";
     }
   };
 

@@ -154,7 +154,7 @@ export const MfaSettings: React.FC = () => {
     <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs font-sans text-left space-y-5" id="mfa-section">
       <div className="flex items-center justify-between border-b border-gray-50 pb-4">
         <div className="flex items-center space-x-3">
-          <div className={`p-2.5 rounded-xl ${mfaStatus.enabled ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
+          <div className={`p-2.5 rounded-xl ${mfaStatus.enabled ? 'bg-emerald-50 text-emerald-600' : 'bg-primary-50 text-primary-600'}`}>
             <Shield className="h-5 w-5" />
           </div>
           <div>
@@ -171,7 +171,7 @@ export const MfaSettings: React.FC = () => {
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-6 space-y-2 text-gray-400">
-          <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+          <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
           <span className="text-xs">Chargement des paramètres de sécurité...</span>
         </div>
       ) : (
@@ -213,7 +213,7 @@ export const MfaSettings: React.FC = () => {
 
                   <button
                     onClick={() => setStep('choose')}
-                    className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 py-3 text-xs font-bold text-white shadow-xs transition-all flex items-center justify-center space-x-2"
+                    className="w-full rounded-xl bg-primary-600 hover:bg-primary-700 py-3 text-xs font-bold text-white shadow-xs transition-all flex items-center justify-center space-x-2"
                   >
                     <Smartphone className="h-4 w-4" />
                     <span>Activer le Double Facteur (MFA)</span>
@@ -230,9 +230,9 @@ export const MfaSettings: React.FC = () => {
                 {/* SMS Option */}
                 <button
                   onClick={() => setStep('sms_input')}
-                  className="flex items-start p-4 rounded-2xl border border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/20 text-left transition-all"
+                  className="flex items-start p-4 rounded-2xl border border-gray-100 bg-white hover:border-primary-200 hover:bg-primary-50/20 text-left transition-all"
                 >
-                  <Phone className="h-5 w-5 text-blue-600 mt-0.5 mr-3 shrink-0" />
+                  <Phone className="h-5 w-5 text-primary-600 mt-0.5 mr-3 shrink-0" />
                   <div>
                     <p className="text-xs font-bold text-gray-800">Validation par SMS</p>
                     <p className="text-[10px] text-gray-400 mt-0.5">Recevez un code à 6 chiffres par SMS à chaque connexion de vendeur.</p>
@@ -242,9 +242,9 @@ export const MfaSettings: React.FC = () => {
                 {/* TOTP Option */}
                 <button
                   onClick={startTotpSetup}
-                  className="flex items-start p-4 rounded-2xl border border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/20 text-left transition-all"
+                  className="flex items-start p-4 rounded-2xl border border-gray-100 bg-white hover:border-primary-200 hover:bg-primary-50/20 text-left transition-all"
                 >
-                  <Key className="h-5 w-5 text-blue-600 mt-0.5 mr-3 shrink-0" />
+                  <Key className="h-5 w-5 text-primary-600 mt-0.5 mr-3 shrink-0" />
                   <div>
                     <p className="text-xs font-bold text-gray-800">Application d'authentification</p>
                     <p className="text-[10px] text-gray-400 mt-0.5">Générez des codes de sécurité via Google Authenticator, Authy ou Microsoft Authenticator.</p>
@@ -274,7 +274,7 @@ export const MfaSettings: React.FC = () => {
                   placeholder="+235 66 00 00 00"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
+                  className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-xs focus:ring-1 focus:ring-primary-500 focus:outline-hidden"
                 />
               </div>
 
@@ -294,7 +294,7 @@ export const MfaSettings: React.FC = () => {
                     toast.success(`Code de validation envoyé au ${phoneNumber}`);
                     setStep('sms_verify');
                   }}
-                  className="flex-1 py-2.5 text-center text-xs bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700"
+                  className="flex-1 py-2.5 text-center text-xs bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700"
                 >
                   Envoyer le code
                 </button>
@@ -316,7 +316,7 @@ export const MfaSettings: React.FC = () => {
                   placeholder="Ex: 123456"
                   value={verificationCode}
                   onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
-                  className="w-full text-center tracking-widest text-lg font-bold rounded-xl border border-gray-200 py-2.5 focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
+                  className="w-full text-center tracking-widest text-lg font-bold rounded-xl border border-gray-200 py-2.5 focus:ring-1 focus:ring-primary-500 focus:outline-hidden"
                 />
                 <p className="text-[9px] text-amber-600 font-medium text-center">
                   💡 Code de test pour la validation Sandbox : <strong className="font-bold">123456</strong>
@@ -332,7 +332,7 @@ export const MfaSettings: React.FC = () => {
                 </button>
                 <button
                   onClick={handleVerifySms}
-                  className="flex-1 py-2.5 text-center text-xs bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700"
+                  className="flex-1 py-2.5 text-center text-xs bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700"
                 >
                   Vérifier et Activer
                 </button>
@@ -356,7 +356,7 @@ export const MfaSettings: React.FC = () => {
                     ))}
                   </div>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Smartphone className="h-8 w-8 text-blue-600 bg-white p-1 rounded-md" />
+                    <Smartphone className="h-8 w-8 text-primary-600 bg-white p-1 rounded-md" />
                   </div>
                 </div>
 
@@ -380,7 +380,7 @@ export const MfaSettings: React.FC = () => {
                     setVerificationCode('');
                     setStep('totp_verify');
                   }}
-                  className="flex-1 py-2.5 text-center text-xs bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700"
+                  className="flex-1 py-2.5 text-center text-xs bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700"
                 >
                   Saisir le Code
                 </button>
@@ -402,7 +402,7 @@ export const MfaSettings: React.FC = () => {
                   placeholder="000 000"
                   value={verificationCode}
                   onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
-                  className="w-full text-center tracking-widest text-lg font-bold rounded-xl border border-gray-200 py-2.5 focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
+                  className="w-full text-center tracking-widest text-lg font-bold rounded-xl border border-gray-200 py-2.5 focus:ring-1 focus:ring-primary-500 focus:outline-hidden"
                 />
                 <p className="text-[9px] text-amber-600 font-medium text-center">
                   💡 Code de test pour la validation Sandbox : <strong className="font-bold">123456</strong>
@@ -418,7 +418,7 @@ export const MfaSettings: React.FC = () => {
                 </button>
                 <button
                   onClick={handleVerifyTotp}
-                  className="flex-1 py-2.5 text-center text-xs bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700"
+                  className="flex-1 py-2.5 text-center text-xs bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700"
                 >
                   Activer la double sécurité
                 </button>

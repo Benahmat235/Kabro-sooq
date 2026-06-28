@@ -103,7 +103,7 @@ export const ReportListingButton: React.FC<ReportListingButtonProps> = ({
                 <select
                   value={reason}
                   onChange={(e) => setReason(e.target.value as any)}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-gray-700 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 >
                   <option value="fraud">Fraude / Arnaque</option>
                   <option value="counterfeit">Contrefaçon ou Produit Interdit</option>
@@ -123,7 +123,7 @@ export const ReportListingButton: React.FC<ReportListingButtonProps> = ({
                   placeholder="Veuillez décrire pourquoi vous considérez cette annonce comme suspecte..."
                   rows={4}
                   maxLength={1000}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs font-medium text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs font-medium text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 />
                 <span className="text-[10px] text-gray-400 font-mono float-right mt-1">
                   {comment.length}/1000 caractères

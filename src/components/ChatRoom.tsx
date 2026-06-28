@@ -1,9 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { getTranslation } from '../utils/translations';
-import { Send, ArrowLeft, Loader2, CheckCircle2, Check, CheckCheck, Smile, Star } from 'lucide-react';
+import { Send, ArrowLeft, Loader2, CheckCircle2, Check, CheckCheck, Smile, Star, Paperclip, X, AlertCircle, Archive, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { hasForbiddenKeywords } from '../utils/security';
+import { uploadChatImage } from '../lib/firebase';
+
+const QUICK_REPLIES = [
+  "Est-ce disponible ?",
+  "Quel est le prix final ?",
+  "Où peut-on se rencontrer ?",
+  "Pouvez-vous envoyer plus de photos ?",
+  "Je suis intéressé(e)."
+];
 
 export const ChatRoom: React.FC = () => {
   const { 
@@ -17,6 +26,7 @@ export const ChatRoom: React.FC = () => {
     updateTypingStatus,
     reviews,
     submitReview,
+    archiveChat,
     user 
   } = useApp();
 
@@ -24,6 +34,13 @@ export const ChatRoom: React.FC = () => {
   const [sending, setSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isTypingLocal, setIsTypingLocal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+  
+  // File upload states
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
   
   // Rating form states
   const [showRatingForm, setShowRatingForm] = useState(false);
@@ -39,7 +56,7 @@ export const ChatRoom: React.FC = () => {
   // Auto-scroll messages list to the bottom on change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loadingMessages]);
+  }, [messages, loadingMessages, filePreview]);
 
   // Clean up typing state on unmount or active chat change
   useEffect(() => {
@@ -73,15 +90,45 @@ export const ChatRoom: React.FC = () => {
     }, 2500);
   };
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!text.trim() || !activeChatId || sending) return;
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const isImage = file.type.startsWith('image/');
+      const isValid = isImage || file.type.startsWith('audio/') || file.type.includes('pdf') || file.type.includes('word') || file.type.includes('document');
+      
+      if (!isValid) {
+        toast.error('Veuillez sélectionner un fichier valide (image, pdf, word, audio).');
+        return;
+      }
 
-    const forbiddenWord = hasForbiddenKeywords(text);
-    if (forbiddenWord) {
-      toast.error(`Votre message contient un mot inapproprié ou interdit ("${forbiddenWord}").`);
-      return;
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('Le fichier ne doit pas dépasser 10 Mo.');
+        return;
+      }
+      
+      setSelectedFile(file);
+      
+      if (isImage) {
+        const reader = new FileReader();
+        reader.onload = (e) => setFilePreview(e.target?.result as string);
+        reader.readAsDataURL(file);
+      } else {
+        setFilePreview('file'); // Placeholder for non-image files
+      }
     }
+  };
+
+  const removeFile = () => {
+    setSelectedFile(null);
+    setFilePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleSend = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if ((!text.trim() && !selectedFile) || !activeChatId || sending || !user) return;
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -92,8 +139,25 @@ export const ChatRoom: React.FC = () => {
     setSending(true);
     setShowEmojiPicker(false);
     try {
-      await sendMessage(activeChatId, text.trim());
+      let attachmentUrl = undefined;
+      let isImage = false;
+
+      if (selectedFile) {
+        attachmentUrl = await uploadChatImage(selectedFile, user.uid);
+        isImage = selectedFile.type.startsWith('image/');
+      }
+
+      await sendMessage(
+        activeChatId, 
+        text.trim(), 
+        isImage ? attachmentUrl : undefined, 
+        !isImage ? attachmentUrl : undefined,
+        selectedFile && !isImage ? selectedFile.name : undefined,
+        selectedFile && !isImage ? selectedFile.type : undefined
+      );
+
       setText('');
+      removeFile();
     } catch (err) {
       console.error(err);
       toast.error("Erreur lors de l'envoi du message.");
@@ -101,6 +165,11 @@ export const ChatRoom: React.FC = () => {
       setSending(false);
     }
   };
+
+  const handleQuickReply = async (reply: string) => {
+    setText(reply);
+  };
+
 
   const handleEmojiClick = (emoji: string) => {
     setText(prev => prev + emoji);
@@ -162,33 +231,64 @@ export const ChatRoom: React.FC = () => {
         <button
           onClick={() => setActiveChatId(null)}
           aria-label="Retourner à la liste des conversations"
-          className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors md:hidden focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors md:hidden focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
           <ArrowLeft className="h-5 w-5" aria-hidden="true" />
         </button>
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-100 shrink-0" aria-hidden="true">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-600 text-white font-bold text-xs shadow-md shadow-primary-100 shrink-0" aria-hidden="true">
           {otherParticipantName.slice(0, 2).toUpperCase()}
         </div>
-        <div>
+        <div className="flex-1">
           <h3 className="text-xs font-black text-gray-800 flex items-center space-x-1">
             <span>{otherParticipantName}</span>
           </h3>
-          <p className="text-[10px] font-bold text-blue-600 font-mono mt-0.5">{activeChat.listingTitle}</p>
+          <p className="text-[10px] font-bold text-primary-600 font-mono mt-0.5">{activeChat.listingTitle}</p>
+        </div>
+        <div className="flex items-center space-x-1">
+          <button
+            onClick={() => setShowSearch(!showSearch)}
+            title="Rechercher"
+            className={`flex items-center justify-center h-8 w-8 rounded-full transition-colors ${showSearch ? 'bg-primary-100 text-primary-700' : 'text-gray-400 hover:text-primary-600 hover:bg-primary-50'}`}
+          >
+            <Search className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => archiveChat(activeChatId!)}
+            title="Archiver la conversation"
+            className="flex items-center justify-center h-8 w-8 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-full transition-colors"
+          >
+            <Archive className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
+      {showSearch && (
+        <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 shrink-0">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Rechercher dans la conversation..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-1.5 text-xs border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Embedded Mini Listing Header details */}
-      <div className="bg-blue-50/50 px-4 py-2 border-b border-gray-100 flex items-center justify-between shrink-0 font-sans">
+      <div className="bg-primary-50/50 px-4 py-2 border-b border-gray-100 flex items-center justify-between shrink-0 font-sans">
         <div className="flex items-center space-x-2">
           <img 
             src={activeChat.listingImage} 
             alt={activeChat.listingTitle} 
-            className="h-8 w-8 rounded-md object-cover border border-blue-100"
+            className="h-8 w-8 rounded-md object-cover border border-primary-100"
             referrerPolicy="no-referrer"
           />
           <div>
             <span className="text-[10px] font-bold text-gray-800 line-clamp-1 leading-none">{activeChat.listingTitle}</span>
-            <span className="text-[10px] font-black text-blue-600 font-mono tracking-tight mt-0.5 inline-block">
+            <span className="text-[10px] font-black text-primary-600 font-mono tracking-tight mt-0.5 inline-block">
               {new Intl.NumberFormat('fr-FR').format(activeChat.listingPrice)} FCFA
             </span>
           </div>
@@ -282,14 +382,17 @@ export const ChatRoom: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-4 space-y-3.5 flex flex-col">
         {loadingMessages ? (
           <div className="flex-1 flex items-center justify-center">
-            <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+            <Loader2 className="h-6 w-6 text-primary-600 animate-spin" />
           </div>
         ) : messages.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-center">
             <p className="text-[11px] font-bold text-gray-400 font-sans max-w-[200px]">Commencez la conversation en saisissant votre message ci-dessous.</p>
           </div>
         ) : (
-          messages.map((msg) => {
+          messages.filter(msg => {
+            if (!searchQuery) return true;
+            return msg.text?.toLowerCase().includes(searchQuery.toLowerCase()) || msg.attachmentName?.toLowerCase().includes(searchQuery.toLowerCase());
+          }).map((msg) => {
             const isMe = msg.senderId === user?.uid;
             return (
               <div
@@ -298,9 +401,33 @@ export const ChatRoom: React.FC = () => {
               >
                 {/* Message pill bubble */}
                 <div
-                  className={`rounded-2xl px-4 py-2.5 text-xs font-medium leading-relaxed font-sans shadow-xs ${isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-100 rounded-bl-none'}`}
+                  className={`rounded-2xl px-4 py-2.5 text-xs font-medium leading-relaxed font-sans shadow-xs ${isMe ? 'bg-primary-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-100 rounded-bl-none'}`}
                 >
-                  {msg.text}
+                  {msg.imageUrl && (
+                    <img 
+                      src={msg.imageUrl} 
+                      alt="Pièce jointe" 
+                      className="max-w-[200px] max-h-[200px] rounded-lg mb-1.5 object-cover" 
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
+                  {msg.attachmentUrl && (
+                    <a 
+                      href={msg.attachmentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`flex items-center space-x-2 p-2 rounded-lg mb-1.5 text-xs font-semibold ${isMe ? 'bg-primary-700 hover:bg-primary-800' : 'bg-gray-100 hover:bg-gray-200'}`}
+                    >
+                      <span className="truncate max-w-[150px]">{msg.attachmentName || "Fichier joint"}</span>
+                    </a>
+                  )}
+                  {msg.text && <div>{msg.text}</div>}
+                  {msg.flagged && (
+                    <div className={`flex items-center space-x-1 mt-1 text-[10px] ${isMe ? 'text-red-200' : 'text-red-500'}`}>
+                      <AlertCircle className="h-3 w-3" />
+                      <span>Message signalé pour modération</span>
+                    </div>
+                  )}
                 </div>
                 {/* Timestamp & Seen indicator */}
                 <div className="flex items-center space-x-1 mt-1.5 px-1">
@@ -309,11 +436,13 @@ export const ChatRoom: React.FC = () => {
                   </span>
                   {isMe && (
                     msg.seen ? (
-                      <span title="Vu" className="flex items-center">
-                        <CheckCheck className="h-3 w-3 text-blue-500" />
+                      <span title="Vu" className="flex items-center space-x-0.5">
+                        <span className="text-[8px] font-bold text-primary-500 uppercase tracking-wide">Lu</span>
+                        <CheckCheck className="h-3 w-3 text-primary-500" />
                       </span>
                     ) : (
-                      <span title="Envoyé" className="flex items-center">
+                      <span title="Envoyé" className="flex items-center space-x-0.5">
+                        <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wide">Envoyé</span>
                         <Check className="h-3 w-3 text-gray-400" />
                       </span>
                     )
@@ -341,6 +470,44 @@ export const ChatRoom: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Quick Replies */}
+      {user?.uid === activeChat.buyerId && (
+        <div className="flex gap-2 overflow-x-auto p-2.5 bg-gray-50/50 border-t border-gray-100 scrollbar-hide">
+          {QUICK_REPLIES.map((reply, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => handleQuickReply(reply)}
+              className="shrink-0 bg-white hover:bg-primary-50 border border-gray-200 hover:border-primary-200 text-[10px] text-gray-600 hover:text-primary-600 px-3 py-1.5 rounded-full font-medium transition-colors shadow-2xs"
+            >
+              {reply}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* File Preview Area */}
+      {filePreview && (
+        <div className="bg-white px-4 py-3 border-t border-gray-100 relative">
+          <div className="relative inline-flex items-center justify-center h-20 bg-gray-50 border border-gray-200 rounded-xl p-2 shadow-sm min-w-[80px]">
+            {filePreview === 'file' ? (
+              <span className="text-xs font-bold text-gray-500 truncate max-w-[150px]">
+                {selectedFile?.name || "Fichier joint"}
+              </span>
+            ) : (
+              <img src={filePreview} alt="Aperçu" className="h-full w-auto object-contain rounded" />
+            )}
+            <button 
+              type="button"
+              onClick={removeFile}
+              className="absolute -top-2 -right-2 bg-white border border-gray-200 rounded-full p-1 text-gray-500 hover:text-red-500 hover:border-red-200 transition-colors shadow-sm"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Typing Form & Emoji Picker bottom area */}
       <div className="relative shrink-0">
         {showEmojiPicker && (
@@ -366,7 +533,7 @@ export const ChatRoom: React.FC = () => {
                       type="button"
                       aria-label={`Insérer l'émoji ${emoji}`}
                       onClick={() => handleEmojiClick(emoji)}
-                      className="text-lg hover:bg-gray-50 rounded p-1 transition-colors active:scale-90 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="text-lg hover:bg-gray-50 rounded p-1 transition-colors active:scale-90 focus:outline-none focus:ring-2 focus:ring-primary-500"
                     >
                       {emoji}
                     </button>
@@ -383,7 +550,7 @@ export const ChatRoom: React.FC = () => {
                       type="button"
                       aria-label={`Insérer l'émoji ${emoji}`}
                       onClick={() => handleEmojiClick(emoji)}
-                      className="text-lg hover:bg-gray-50 rounded p-1 transition-colors active:scale-90 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="text-lg hover:bg-gray-50 rounded p-1 transition-colors active:scale-90 focus:outline-none focus:ring-2 focus:ring-primary-500"
                     >
                       {emoji}
                     </button>
@@ -400,7 +567,7 @@ export const ChatRoom: React.FC = () => {
                       type="button"
                       aria-label={`Insérer l'émoji ${emoji}`}
                       onClick={() => handleEmojiClick(emoji)}
-                      className="text-lg hover:bg-gray-50 rounded p-1 transition-colors active:scale-90 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="text-lg hover:bg-gray-50 rounded p-1 transition-colors active:scale-90 focus:outline-none focus:ring-2 focus:ring-primary-500"
                     >
                       {emoji}
                     </button>
@@ -412,12 +579,28 @@ export const ChatRoom: React.FC = () => {
         )}
 
         <form onSubmit={handleSend} className="bg-white border-t border-gray-100 p-3 flex items-center space-x-2" aria-label="Saisie du message">
+          <input 
+            type="file" 
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept="image/*, application/pdf, audio/*, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            aria-label="Joindre un fichier"
+          >
+            <Paperclip className="h-5 w-5" />
+          </button>
+
           <button
             type="button"
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
             aria-expanded={showEmojiPicker}
             aria-label="Sélecteur d'émojis"
-            className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500 ${showEmojiPicker ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+            className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-500 ${showEmojiPicker ? 'bg-primary-50 text-primary-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
           >
             <Smile className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -428,13 +611,13 @@ export const ChatRoom: React.FC = () => {
             onChange={(e) => handleInputChange(e.target.value)}
             placeholder={getTranslation(language, 'typeMessage')}
             aria-label={getTranslation(language, 'typeMessage')}
-            className="flex-1 rounded-xl bg-gray-50 border border-gray-100 px-4 py-2.5 text-xs font-medium outline-none focus:bg-white focus:border-blue-500 transition-colors"
+            className="flex-1 rounded-xl bg-gray-50 border border-gray-100 px-4 py-2.5 text-base font-medium outline-none focus:bg-white focus:border-primary-500 transition-colors"
           />
           <button
             type="submit"
-            disabled={!text.trim() || sending}
+            disabled={(!text.trim() && !selectedFile) || sending}
             aria-label="Envoyer le message"
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white disabled:opacity-50 hover:bg-blue-700 transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-600 text-white disabled:opacity-50 hover:bg-primary-700 transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <Send className="h-4.5 w-4.5" aria-hidden="true" />
           </button>

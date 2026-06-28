@@ -16,15 +16,6 @@ export function sanitizeText(val: unknown, maxLength: number = 1000): string {
   
   // Trim whitespace
   cleaned = cleaned.trim();
-  
-  // HTML encode special characters
-  cleaned = cleaned
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;")
-    .replace(/\//g, "&#x2F;");
 
   // Truncate to maximum length
   if (cleaned.length > maxLength) {
@@ -209,10 +200,7 @@ export const listingSchema = z.object({
 export const messageSchema = z.string()
   .min(1, { message: "Le message ne peut pas être vide." })
   .transform(text => sanitizeText(text, 2000))
-  .refine(text => text !== '', { message: "Contenu du message invalide ou vide après nettoyage." })
-  .refine(text => !hasForbiddenKeywords(text), {
-    message: "Le message contient des mots inappropriés ou interdits."
-  });
+  .refine(text => text !== '', { message: "Contenu du message invalide ou vide après nettoyage." });
 
 /**
  * Validates and sanitizes all fields of a Listing to enforce Zero-Trust guidelines before Firestore write.

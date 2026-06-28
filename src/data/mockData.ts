@@ -3,13 +3,48 @@ import tchadData from './tchadData.json';
 
 export const CITIES: CityType[] = tchadData.tchad.regions.map(r => r.chef_lieu);
 
-export const CATEGORIES: { name: CategoryType; icon: string }[] = [
-  { name: "Véhicules", icon: "Car" },
-  { name: "Immobilier", icon: "Home" },
-  { name: "Téléphones", icon: "Smartphone" },
-  { name: "Emploi", icon: "Briefcase" },
-  { name: "Services", icon: "Wrench" },
-  { name: "Animaux", icon: "PawPrint" }
+export interface CategoryDefinition {
+  name: CategoryType;
+  icon: string;
+  subcategories?: string[];
+}
+
+export const CATEGORIES: CategoryDefinition[] = [
+  { 
+    name: "Véhicules", 
+    icon: "Car",
+    subcategories: ["Voitures", "Motos", "Camions", "Pièces détachées"]
+  },
+  { 
+    name: "Immobilier", 
+    icon: "Home",
+    subcategories: ["Vente Appartement", "Location Appartement", "Maisons", "Terrains", "Bureaux & Commerces"]
+  },
+  { 
+    name: "Électronique", 
+    icon: "Smartphone", // Changed to general electronics
+    subcategories: ["Téléphones & Smartphones", "Tablettes", "Ordinateurs", "TV & Son", "Accessoires"]
+  },
+  { 
+    name: "Emploi & Services", 
+    icon: "Briefcase",
+    subcategories: ["Offres d'emploi", "Prestations de services", "Formations", "Cours particuliers"]
+  },
+  { 
+    name: "Animaux", 
+    icon: "PawPrint",
+    subcategories: ["Chiens", "Chats", "Oiseaux", "Bétail", "Accessoires"]
+  },
+  {
+    name: "Mode & Beauté",
+    icon: "Shirt",
+    subcategories: ["Vêtements", "Chaussures", "Montres & Bijoux", "Cosmétiques"]
+  },
+  {
+    name: "Maison & Jardin",
+    icon: "Sofa",
+    subcategories: ["Meubles", "Décoration", "Bricolage", "Jardinage"]
+  }
 ];
 
 export const MOCK_LISTINGS: Listing[] = [
@@ -105,6 +140,7 @@ export const MOCK_LISTINGS: Listing[] = [
     description: "Gros béliers de race du Batha très bien engraissés pour l'Aïd El-Adha (Tabaski) ou autres cérémonies. Disponibles à Abéché avec possibilité d'expédition sécurisée vers N'Djaména par camion de transport. Bon prix, bêtes en excellente santé.",
     price: 110000,
     category: "Animaux",
+    subcategory: "Bétail",
     city: "Abéché",
     images: [
       "https://images.unsplash.com/photo-1484557985045-def2550a47f9?auto=format&fit=crop&q=80&w=1000"
@@ -188,7 +224,8 @@ export const MOCK_LISTINGS: Listing[] = [
     title: "Recherche Chauffeur Professionnel Catégorie B/C",
     description: "Entreprise logistique à N'Djaména recherche de toute urgence un chauffeur professionnel sérieux avec permis B et C valide. Expérience de 3 ans minimum dans la conduite de véhicules de livraison ou 4x4. Connaissance parfaite des rues de N'Djaména et des axes provinciaux requise. Salaire mensuel attractif.",
     price: 180000,
-    category: "Emploi",
+    category: "Emploi & Services",
+    subcategory: "Offres d'emploi",
     city: "N'Djaména",
     images: [
       "https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?auto=format&fit=crop&q=80&w=1000"

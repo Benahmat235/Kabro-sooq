@@ -30,7 +30,8 @@ import {
   validateAndSanitizeListing, 
   validateAndSanitizeMessageText, 
   sanitizeText, 
-  validateAndSanitizeUrl 
+  validateAndSanitizeUrl,
+  hasForbiddenKeywords
 } from '../utils/security';
 
 const listingConverter: FirestoreDataConverter<Listing> = {
@@ -130,7 +131,10 @@ const userProfileConverter: FirestoreDataConverter<FirestoreUserDoc> = {
       if (profile.avatarUrl !== undefined) data.avatarUrl = profile.avatarUrl;
       if (profile.createdAt !== undefined) data.createdAt = profile.createdAt;
       if (profile.savedListings !== undefined) data.savedListings = profile.savedListings;
+      if (profile.priceAlerts !== undefined) data.priceAlerts = profile.priceAlerts;
+      if (profile.followedSellers !== undefined) data.followedSellers = profile.followedSellers;
       if (profile.fcmTokens !== undefined) data.fcmTokens = profile.fcmTokens;
+      if (profile.loyaltyPoints !== undefined) data.loyaltyPoints = profile.loyaltyPoints;
       return data;
     }
     return {
@@ -139,7 +143,10 @@ const userProfileConverter: FirestoreDataConverter<FirestoreUserDoc> = {
       avatarUrl: profile.avatarUrl || '',
       createdAt: profile.createdAt || '',
       savedListings: profile.savedListings || [],
-      fcmTokens: profile.fcmTokens || []
+      priceAlerts: profile.priceAlerts || [],
+      followedSellers: profile.followedSellers || [],
+      fcmTokens: profile.fcmTokens || [],
+      loyaltyPoints: profile.loyaltyPoints || 0
     };
   },
   fromFirestore(snapshot: QueryDocumentSnapshot): FirestoreUserDoc {
@@ -150,7 +157,10 @@ const userProfileConverter: FirestoreDataConverter<FirestoreUserDoc> = {
       avatarUrl: data.avatarUrl || '',
       createdAt: data.createdAt || '',
       savedListings: data.savedListings || [],
-      fcmTokens: data.fcmTokens || []
+      priceAlerts: data.priceAlerts || [],
+      followedSellers: data.followedSellers || [],
+      fcmTokens: data.fcmTokens || [],
+      loyaltyPoints: data.loyaltyPoints || 0
     };
   }
 };
@@ -231,6 +241,7 @@ interface AppContextType {
   activeTab: 'home' | 'messages' | 'my-ads' | 'account';
   setActiveTab: (tab: 'home' | 'messages' | 'my-ads' | 'account') => void;
   user: User | null;
+  loyaltyPoints: number;
   loadingAuth: boolean;
   listings: Listing[];
   loadingListings: boolean;
@@ -243,21 +254,37 @@ interface AppContextType {
   isOffline: boolean;
   unreadCount: number;
   savedListings: string[];
+  priceAlerts: string[];
+  followedSellers: string[];
   reviews: Review[];
   reports: Report[];
   loadingReports: boolean;
   toggleFavorite: (listingId: string) => Promise<void>;
+  togglePriceAlert: (listingId: string) => Promise<void>;
+  toggleFollowSeller: (sellerId: string) => Promise<void>;
   addListing: (listingData: Omit<Listing, 'id' | 'createdAt' | 'viewsCount' | 'status' | 'sellerId' | 'sellerName' | 'sellerIsVerified' | 'sellerResponseTime'>) => Promise<void>;
   incrementListingViews: (listingId: string) => Promise<void>;
   markListingAsSold: (listingId: string) => Promise<void>;
   deleteListing: (listingId: string) => Promise<void>;
   updateListingQuantityAndStatus: (listingId: string, quantity: number, status: 'active' | 'sold' | 'archived' | 'out_of_stock') => Promise<void>;
   startNewChat: (listing: Listing) => Promise<string>;
-  sendMessage: (chatId: string, text: string) => Promise<void>;
+  sendMessage: (
+    chatId: string, 
+    text: string, 
+    imageUrl?: string,
+    attachmentUrl?: string,
+    attachmentName?: string,
+    attachmentType?: string
+  ) => Promise<void>;
   updateTypingStatus: (chatId: string, isTyping: boolean) => Promise<void>;
   submitReview: (sellerId: string, sellerName: string, rating: number, comment: string, listingId: string, listingTitle: string) => Promise<void>;
   submitReport: (listingId: string, listingTitle: string, listingSellerId: string, listingSellerName: string, reason: 'fraud' | 'counterfeit' | 'inappropriate' | 'wrong_price' | 'other', comment: string) => Promise<void>;
   resolveReport: (reportId: string, listingId: string, action: 'archive' | 'dismiss') => Promise<void>;
+  archiveChat: (chatId: string) => Promise<void>;
+  theme: string;
+  setTheme: (theme: string) => void;
+  showTutorial: boolean;
+  completeTutorial: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -270,6 +297,32 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   
+  const [theme, setThemeState] = useState(() => {
+    return localStorage.getItem('app-theme') || 'default';
+  });
+
+  const [showTutorial, setShowTutorial] = useState(() => {
+    return localStorage.getItem('has-seen-tutorial') !== 'true';
+  });
+
+  const completeTutorial = () => {
+    setShowTutorial(false);
+    localStorage.setItem('has-seen-tutorial', 'true');
+  };
+
+  const setTheme = (newTheme: string) => {
+    setThemeState(newTheme);
+    localStorage.setItem('app-theme', newTheme);
+  };
+
+  useEffect(() => {
+    if (theme === 'default') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+  }, [theme]);
+
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   // Monitor network status
@@ -335,7 +388,73 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     staleTime: 5000,
   });
 
-  // Real-time synchronization of savedListings (favorites) across devices
+  // Monitor user document for priceAlerts using React Query
+  const { data: priceAlerts = [] } = useQuery<string[]>({
+    queryKey: ['priceAlerts', user?.uid],
+    queryFn: async () => {
+      if (!user) return [];
+      const userRef = doc(db, 'users', user.uid).withConverter(userProfileConverter);
+      try {
+        const docSnap = await getDoc(userRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          return data.priceAlerts || [];
+        }
+        return [];
+      } catch (error) {
+        console.error("Failed to fetch price alerts:", error);
+        return [];
+      }
+    },
+    enabled: !!user,
+    staleTime: 5000,
+  });
+
+  // Monitor user document for followedSellers using React Query
+  const { data: followedSellers = [] } = useQuery<string[]>({
+    queryKey: ['followedSellers', user?.uid],
+    queryFn: async () => {
+      if (!user) return [];
+      const userRef = doc(db, 'users', user.uid).withConverter(userProfileConverter);
+      try {
+        const docSnap = await getDoc(userRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          return data.followedSellers || [];
+        }
+        return [];
+      } catch (error) {
+        console.error("Failed to fetch followed sellers:", error);
+        return [];
+      }
+    },
+    enabled: !!user,
+    staleTime: 5000,
+  });
+
+  // Monitor user document for loyaltyPoints using React Query
+  const { data: loyaltyPoints = 0 } = useQuery<number>({
+    queryKey: ['loyaltyPoints', user?.uid],
+    queryFn: async () => {
+      if (!user) return 0;
+      const userRef = doc(db, 'users', user.uid).withConverter(userProfileConverter);
+      try {
+        const docSnap = await getDoc(userRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          return data.loyaltyPoints || 0;
+        }
+        return 0;
+      } catch (error) {
+        console.error("Failed to fetch loyalty points:", error);
+        return 0;
+      }
+    },
+    enabled: !!user,
+    staleTime: 5000,
+  });
+
+  // Real-time synchronization of user data across devices
   useEffect(() => {
     if (!user) return;
     const userRef = doc(db, 'users', user.uid).withConverter(userProfileConverter);
@@ -343,6 +462,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
         queryClient.setQueryData(['savedListings', user.uid], data.savedListings || []);
+        queryClient.setQueryData(['priceAlerts', user.uid], data.priceAlerts || []);
+        queryClient.setQueryData(['followedSellers', user.uid], data.followedSellers || []);
+        queryClient.setQueryData(['loyaltyPoints', user.uid], data.loyaltyPoints || 0);
       }
     }, (error) => {
       console.error("Error listening to user document updates:", error);
@@ -397,7 +519,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             toast((t) => (
               <div className="flex flex-col space-y-1 p-0.5 font-sans">
                 <div className="flex items-center space-x-1.5">
-                  <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                  <span className="h-2 w-2 rounded-full bg-primary-500 animate-pulse shrink-0" />
                   <span className="font-bold text-xs text-gray-800">{payload.notification?.title || 'Nouveau message'}</span>
                 </div>
                 <p className="text-[11px] text-gray-600 font-semibold leading-snug">{payload.notification?.body || ''}</p>
@@ -452,6 +574,68 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       queryClient.setQueryData(['savedListings', user.uid], previousSaved);
       toast.error("Erreur lors de la mise à jour des favoris.");
       throw new Error("Erreur lors de la mise à jour des favoris.");
+    }
+  };
+
+  const togglePriceAlert = async (listingId: string) => {
+    if (!user) {
+      toast.error("Veuillez vous connecter pour activer l'alerte de prix.");
+      throw new Error("Veuillez vous connecter pour activer l'alerte de prix.");
+    }
+    const userRef = doc(db, 'users', user.uid).withConverter(userProfileConverter);
+    const previousAlerts = priceAlerts;
+    try {
+      const hasAlert = previousAlerts.includes(listingId);
+      let newAlerts;
+      if (hasAlert) {
+        newAlerts = previousAlerts.filter(id => id !== listingId);
+        toast.success("Alerte de baisse de prix désactivée");
+      } else {
+        newAlerts = [...previousAlerts, listingId];
+        toast.success("Alerte de baisse de prix activée !");
+      }
+      
+      // Optimistic update
+      queryClient.setQueryData(['priceAlerts', user.uid], newAlerts);
+      
+      await setDoc(userRef, { priceAlerts: newAlerts }, { merge: true });
+    } catch (err) {
+      console.error("Error toggling price alert:", err);
+      // Revert on error
+      queryClient.setQueryData(['priceAlerts', user.uid], previousAlerts);
+      toast.error("Erreur lors de la mise à jour de l'alerte de prix.");
+      throw new Error("Erreur lors de la mise à jour de l'alerte de prix.");
+    }
+  };
+
+  const toggleFollowSeller = async (sellerId: string) => {
+    if (!user) {
+      toast.error("Veuillez vous connecter pour suivre un vendeur.");
+      throw new Error("Veuillez vous connecter pour suivre un vendeur.");
+    }
+    const userRef = doc(db, 'users', user.uid).withConverter(userProfileConverter);
+    const previousFollows = followedSellers;
+    try {
+      const isFollowing = previousFollows.includes(sellerId);
+      let newFollows;
+      if (isFollowing) {
+        newFollows = previousFollows.filter(id => id !== sellerId);
+        toast.success("Vous ne suivez plus ce vendeur.");
+      } else {
+        newFollows = [...previousFollows, sellerId];
+        toast.success("Vous suivez maintenant ce vendeur !");
+      }
+      
+      // Optimistic update
+      queryClient.setQueryData(['followedSellers', user.uid], newFollows);
+      
+      await setDoc(userRef, { followedSellers: newFollows }, { merge: true });
+    } catch (err) {
+      console.error("Error toggling seller follow:", err);
+      // Revert on error
+      queryClient.setQueryData(['followedSellers', user.uid], previousFollows);
+      toast.error("Erreur lors de la mise à jour de l'abonnement.");
+      throw new Error("Erreur lors de la mise à jour de l'abonnement.");
     }
   };
 
@@ -512,30 +696,34 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     refetchInterval: 5000, // Background automatic refresh every 5s
   });
 
-  // Sync active chat messages with React Query
-  const { data: messages = [], isLoading: loadingMessages } = useQuery<Message[]>({
-    queryKey: ['messages', activeChatId, user?.uid],
-    queryFn: async () => {
-      if (!activeChatId || !user) return [];
-      const messagesPath = `chats/${activeChatId}/messages`;
-      try {
-        const q = query(collection(db, messagesPath).withConverter(messageConverter), orderBy('createdAt', 'asc'));
-        const snapshot = await getDocs(q);
-        const fetchedMessages: Message[] = [];
-        snapshot.forEach((docSnap) => {
-          fetchedMessages.push(docSnap.data());
-        });
-        return fetchedMessages;
-      } catch (error) {
-        console.error("Messages sync failed: ", error);
-        handleFirestoreError(error, OperationType.LIST, messagesPath);
-        return [];
-      }
-    },
-    enabled: !!activeChatId && !!user,
-    staleTime: 3000,
-    refetchInterval: 3000, // Background automatic refresh every 3s
-  });
+  // Sync active chat messages with real-time listener
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+
+  useEffect(() => {
+    if (!activeChatId || !user) {
+      setMessages([]);
+      return;
+    }
+    setLoadingMessages(true);
+    const messagesPath = `chats/${activeChatId}/messages`;
+    const q = query(collection(db, messagesPath).withConverter(messageConverter), orderBy('createdAt', 'asc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedMessages: Message[] = [];
+      snapshot.forEach((docSnap) => {
+        fetchedMessages.push(docSnap.data());
+      });
+      setMessages(fetchedMessages);
+      setLoadingMessages(false);
+    }, (error) => {
+      console.error("Messages sync failed: ", error);
+      handleFirestoreError(error, OperationType.LIST, messagesPath);
+      setLoadingMessages(false);
+    });
+
+    return () => unsubscribe();
+  }, [activeChatId, user]);
 
   // Automatically mark unread messages as seen when messages are loaded
   useEffect(() => {
@@ -580,6 +768,23 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }, 0);
   }, [chats, user]);
 
+  // App Badge API integration to show unread messages count on app icon
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
+      try {
+        if (unreadCount > 0) {
+          // @ts-ignore - TS doesn't always know about setAppBadge
+          navigator.setAppBadge(unreadCount).catch(console.error);
+        } else {
+          // @ts-ignore
+          navigator.clearAppBadge().catch(console.error);
+        }
+      } catch (err) {
+        console.warn("App Badge API failed", err);
+      }
+    }
+  }, [unreadCount]);
+
   // Function to publish a new listing
   const addListing = async (listingData: Omit<Listing, 'id' | 'createdAt' | 'viewsCount' | 'status' | 'sellerId' | 'sellerName' | 'sellerIsVerified' | 'sellerResponseTime'>) => {
     if (!user) throw new Error("Veuillez vous connecter pour publier.");
@@ -599,6 +804,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (!response.ok) {
+        if (response.status === 500) {
+          throw new Error("SERVER_ERROR_FALLBACK");
+        }
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Une erreur est survenue lors de la publication.");
       }
@@ -610,6 +818,32 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
       queryClient.invalidateQueries({ queryKey: ['listings'] });
     } catch (error: any) {
+      if (error.message === "SERVER_ERROR_FALLBACK" || error.message.includes("Failed to fetch")) {
+        console.warn("Backend API unavailable or permissions denied. Falling back to secure Client SDK write.");
+        try {
+          const listingsRef = collection(db, 'listings');
+          const newDocRef = doc(listingsRef);
+          
+          const newListing = {
+            ...validatedListingData,
+            id: newDocRef.id,
+            sellerId: user.uid,
+            sellerName: user.displayName || user.email?.split('@')[0] || "Vendeur",
+            sellerIsVerified: false,
+            sellerResponseTime: 'Répond rapidement',
+            status: 'active',
+            viewsCount: 0,
+            createdAt: new Date().toISOString()
+          };
+          
+          await setDoc(newDocRef.withConverter(listingConverter), newListing);
+          queryClient.invalidateQueries({ queryKey: ['listings'] });
+          return;
+        } catch (fallbackError) {
+          console.error("Client SDK fallback also failed:", fallbackError);
+          throw new Error("Une erreur est survenue lors de la publication. Veuillez réessayer.");
+        }
+      }
       console.error("Failed to securely publish listing via backend:", error);
       throw error;
     }
@@ -769,11 +1003,21 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   // Send a message inside a chat
-  const sendMessage = async (chatId: string, text: string) => {
+  const sendMessage = async (
+    chatId: string, 
+    text: string, 
+    imageUrl?: string, 
+    attachmentUrl?: string,
+    attachmentName?: string,
+    attachmentType?: string
+  ) => {
     if (!user) throw new Error("Veuillez vous connecter.");
 
     // Zero-Trust validation & sanitization of user message text
     const sanitizedText = validateAndSanitizeMessageText(text);
+
+    // Auto-moderation
+    const forbiddenWord = hasForbiddenKeywords(sanitizedText);
 
     const messagesPath = `chats/${chatId}/messages`;
     const messageId = `msg_${Date.now()}`;
@@ -781,7 +1025,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       id: messageId,
       senderId: user.uid,
       text: sanitizedText,
-      createdAt: new Date().toISOString()
+      ...(imageUrl && { imageUrl }),
+      ...(attachmentUrl && { attachmentUrl }),
+      ...(attachmentName && { attachmentName }),
+      ...(attachmentType && { attachmentType }),
+      createdAt: new Date().toISOString(),
+      ...(forbiddenWord ? { flagged: true, flaggedReason: 'inappropriate content' } : {})
     };
 
     try {
@@ -800,7 +1049,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         };
         
         await updateDoc(doc(collection(db, 'chats').withConverter(chatConverter), chatId), {
-          lastMessage: sanitizedText,
+          lastMessage: imageUrl ? (text ? `📸 ${sanitizedText}` : "📸 Image") : sanitizedText,
           lastMessageAt: new Date().toISOString(),
           unreadCount: newUnreadCount
         });
@@ -825,7 +1074,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           body: JSON.stringify({
             recipientId: otherUserId,
             title: user.displayName || user.email?.split('@')[0] || "Nouveau message",
-            body: sanitizedText,
+            body: imageUrl ? (text ? `📸 ${sanitizedText}` : "📸 Image") : sanitizedText,
             data: {
               chatId,
               type: 'chat'
@@ -1042,6 +1291,26 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // Archive a chat conversation
+  const archiveChat = async (chatId: string) => {
+    if (!user) throw new Error("Veuillez vous connecter.");
+
+    try {
+      const chatRef = doc(db, 'chats', chatId).withConverter(chatConverter);
+      await updateDoc(chatRef, {
+        archivedBy: arrayUnion(user.uid)
+      });
+      queryClient.invalidateQueries({ queryKey: ['chats', user.uid] });
+      toast.success("Conversation archivée avec succès.");
+      if (activeChatId === chatId) {
+        setActiveChatId(null);
+      }
+    } catch (error) {
+      console.error("Failed to archive chat:", error);
+      toast.error("Erreur lors de l'archivage de la conversation.");
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1052,6 +1321,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         activeTab,
         setActiveTab,
         user,
+        loyaltyPoints,
         loadingAuth,
         listings,
         loadingListings,
@@ -1064,10 +1334,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         isOffline,
         unreadCount,
         savedListings,
+        priceAlerts,
+        followedSellers,
         reviews,
         reports,
         loadingReports,
         toggleFavorite,
+        togglePriceAlert,
+        toggleFollowSeller,
         addListing,
         incrementListingViews,
         markListingAsSold,
@@ -1078,7 +1352,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         updateTypingStatus,
         submitReview,
         submitReport,
-        resolveReport
+        resolveReport,
+        archiveChat,
+        theme,
+        setTheme,
+        showTutorial,
+        completeTutorial
       }}
     >
       {children}

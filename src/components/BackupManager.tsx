@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Database, CloudLightning, ShieldAlert, CheckCircle2, RefreshCw, HardDrive, Calendar, ArrowUpRight, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { db } from '../lib/firebase';
+import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 
 interface BackupRecord {
   id: string;
@@ -29,21 +31,13 @@ export const BackupManager: React.FC = () => {
     if (!user) return;
     setLoading(true);
     try {
-      const idToken = await user.getIdToken();
-      const response = await fetch('/api/admin/backups', {
-        headers: {
-          'Authorization': `Bearer ${idToken}`
-        }
-      });
-      if (!response.ok) {
-        throw new Error("Erreur de récupération de l'historique.");
-      }
-      const data = await response.json();
-      if (data.success) {
-        setBackups(data.backups || []);
-      }
+      const q = query(collection(db, "backup_history"), orderBy("timestamp", "desc"), limit(30));
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as BackupRecord[];
+      setBackups(data);
     } catch (error) {
       console.error("Error loading backups:", error);
+      toast.error("Erreur de récupération de l'historique.");
     } finally {
       setLoading(false);
     }

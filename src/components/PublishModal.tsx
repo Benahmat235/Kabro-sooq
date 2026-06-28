@@ -7,6 +7,7 @@ import { CategoryType, CityType, ConditionType, isCategoryType, isCityType, isCo
 import { uploadListingImage } from '../lib/firebase';
 import tchadData from '../data/tchadData.json';
 import { hasForbiddenKeywords } from '../utils/security';
+import { convertToWebP } from '../utils/image';
 
 interface ImageItem {
   id: string;
@@ -107,26 +108,33 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
     }
   };
 
-  const handleFiles = (files: FileList) => {
-    Array.from(files).forEach(file => {
-      if (!file.type.startsWith('image/')) {
+  const handleFiles = async (files: FileList) => {
+    for (const originalFile of Array.from(files)) {
+      if (!originalFile.type.startsWith('image/')) {
         setError('Veuillez sélectionner uniquement des images.');
-        return;
+        continue;
       }
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result;
-        if (typeof result === 'string') {
-          const newItem: ImageItem = {
-            id: `${Date.now()}-${Math.random()}`,
-            preview: result,
-            file: file,
-          };
-          setImages(prev => [...prev, newItem]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+      
+      try {
+        const webpFile = await convertToWebP(originalFile);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const result = e.target?.result;
+          if (typeof result === 'string') {
+            const newItem: ImageItem = {
+              id: `${Date.now()}-${Math.random()}`,
+              preview: result,
+              file: webpFile,
+            };
+            setImages(prev => [...prev, newItem]);
+          }
+        };
+        reader.readAsDataURL(webpFile);
+      } catch (err) {
+        console.error("Erreur lors de la conversion de l'image:", err);
+        setError("Erreur lors du traitement de l'image.");
+      }
+    }
   };
 
   const handleAddPresetImage = (url: string) => {
@@ -261,18 +269,18 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
         {/* Stepper indicators */}
         <div className="flex items-center justify-between bg-gray-50/50 px-6 py-3.5 border-b border-gray-100 text-xs font-bold font-sans tracking-wide shrink-0">
           <div className="flex items-center space-x-2">
-            <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] ${step >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>1</span>
-            <span className={step >= 1 ? 'text-blue-600' : 'text-gray-400'}>{getTranslation(language, 'step1')}</span>
+            <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] ${step >= 1 ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-600'}`}>1</span>
+            <span className={step >= 1 ? 'text-primary-600' : 'text-gray-400'}>{getTranslation(language, 'step1')}</span>
           </div>
           <div className="h-0.5 flex-1 bg-gray-200 mx-4" />
           <div className="flex items-center space-x-2">
-            <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] ${step >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>2</span>
-            <span className={step >= 2 ? 'text-blue-600' : 'text-gray-400'}>{getTranslation(language, 'step2')}</span>
+            <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] ${step >= 2 ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-600'}`}>2</span>
+            <span className={step >= 2 ? 'text-primary-600' : 'text-gray-400'}>{getTranslation(language, 'step2')}</span>
           </div>
           <div className="h-0.5 flex-1 bg-gray-200 mx-4" />
           <div className="flex items-center space-x-2">
-            <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] ${step >= 3 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>3</span>
-            <span className={step >= 3 ? 'text-blue-600' : 'text-gray-400'}>{getTranslation(language, 'step3')}</span>
+            <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] ${step >= 3 ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-600'}`}>3</span>
+            <span className={step >= 3 ? 'text-primary-600' : 'text-gray-400'}>{getTranslation(language, 'step3')}</span>
           </div>
         </div>
 
@@ -298,13 +306,13 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder={getTranslation(language, 'titlePlaceholder')}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 outline-none transition-all"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium focus:border-primary-500 focus:ring-1 focus:ring-primary-500/50 outline-none transition-all"
                   maxLength={100}
                 />
               </div>
 
               {/* Grid Category & Condition */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold text-gray-700 uppercase tracking-wide mb-1.5">{getTranslation(language, 'category')}</label>
                   <select
@@ -315,7 +323,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                         setCategory(val);
                       }
                     }}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 focus:border-blue-500 outline-none transition-all"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 focus:border-primary-500 outline-none transition-all"
                   >
                     {CATEGORIES.map(cat => (
                       <option key={cat.name} value={cat.name}>{cat.name}</option>
@@ -333,7 +341,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                         setCondition(val);
                       }
                     }}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 focus:border-blue-500 outline-none transition-all"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 focus:border-primary-500 outline-none transition-all"
                   >
                     <option value="new">{getTranslation(language, 'new')}</option>
                     <option value="excellent">{getTranslation(language, 'excellent')}</option>
@@ -344,7 +352,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
               </div>
 
               {/* Grid Price & City */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold text-gray-700 uppercase tracking-wide mb-1.5">{getTranslation(language, 'price')} (FCFA)</label>
                   <input 
@@ -352,7 +360,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                     value={price}
                     onChange={(e) => setPrice(e.target.value !== '' ? Number(e.target.value) : '')}
                     placeholder={getTranslation(language, 'pricePlaceholder')}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-800 font-mono focus:border-blue-500 outline-none transition-all"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-800 font-mono focus:border-primary-500 outline-none transition-all"
                   />
                 </div>
 
@@ -374,7 +382,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                         }
                       }
                     }}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 focus:border-blue-500 outline-none transition-all"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 focus:border-primary-500 outline-none transition-all"
                   >
                     {tchadData.tchad.regions.map(r => r.chef_lieu).sort().map(c => (
                       <option key={c} value={c}>{c}</option>
@@ -392,19 +400,19 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                   onChange={(e) => setQuantity(e.target.value !== '' ? Math.max(1, Number(e.target.value)) : 1)}
                   placeholder="1"
                   min="1"
-                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-800 font-mono focus:border-blue-500 outline-none transition-all"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-800 font-mono focus:border-primary-500 outline-none transition-all"
                 />
                 <p className="text-[10px] text-gray-400 mt-1">Indiquez la quantité de stock disponible pour ce produit.</p>
               </div>
 
               {city === "N'Djaména" && (
-                <div className="grid grid-cols-2 gap-4 bg-orange-50/40 p-4 rounded-2xl border border-orange-100/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-primary-50/40 p-4 rounded-2xl border border-primary-100/50 animate-in fade-in slide-in-from-top-2 duration-300">
                   <div>
                     <label className="block font-bold text-gray-700 uppercase tracking-wide mb-1.5 text-[10px]">Arrondissement (N'Djaména)</label>
                     <select
                       value={selectedArrondissement}
                       onChange={(e) => handleArrondissementChange(e.target.value)}
-                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-xs font-bold text-gray-700 focus:border-blue-500 outline-none transition-all"
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-xs font-bold text-gray-700 focus:border-primary-500 outline-none transition-all"
                     >
                       {tchadData.tchad.ndjamena.arrondissements.map(arr => (
                         <option key={arr.nom} value={arr.nom}>{arr.nom}</option>
@@ -417,7 +425,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                     <select
                       value={selectedQuartier}
                       onChange={(e) => setSelectedQuartier(e.target.value)}
-                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-xs font-bold text-gray-700 focus:border-blue-500 outline-none transition-all"
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-xs font-bold text-gray-700 focus:border-primary-500 outline-none transition-all"
                     >
                       {availableQuartiers.map(q => (
                         <option key={q} value={q}>{q}</option>
@@ -434,7 +442,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder={getTranslation(language, 'descPlaceholder')}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium focus:border-blue-500 outline-none transition-all min-h-[100px] h-[120px]"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium focus:border-primary-500 outline-none transition-all min-h-[100px] h-[120px]"
                   maxLength={2000}
                 />
               </div>
@@ -454,7 +462,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                 onDragLeave={handleDrag}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl py-8 px-6 text-center cursor-pointer transition-all ${dragActive ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50'}`}
+                className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl py-8 px-6 text-center cursor-pointer transition-all ${dragActive ? 'border-primary-500 bg-primary-50/50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50'}`}
               >
                 <input 
                   type="file"
@@ -464,7 +472,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                   accept="image/*"
                   className="hidden"
                 />
-                <UploadCloud className="h-11 w-11 text-blue-500 mb-2.5" />
+                <UploadCloud className="h-11 w-11 text-primary-500 mb-2.5" />
                 <p className="text-xs font-semibold text-gray-600 px-4">{getTranslation(language, 'addPhoto')}</p>
                 <p className="text-[10px] text-gray-400 mt-1">PNG, JPG, JPEG jusqu'à 5 Mo par fichier</p>
               </div>
@@ -480,11 +488,11 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                         key={idx}
                         type="button"
                         onClick={() => handleAddPresetImage(preset)}
-                        className={`relative h-14 w-18 shrink-0 rounded-lg overflow-hidden border-2 transition-all ${isSelected ? 'border-orange-500 ring-2 ring-orange-500/20 scale-95' : 'border-gray-100 hover:scale-95'}`}
+                        className={`relative h-14 w-18 shrink-0 rounded-lg overflow-hidden border-2 transition-all ${isSelected ? 'border-primary-500 ring-2 ring-primary-500/20 scale-95' : 'border-gray-100 hover:scale-95'}`}
                       >
-                        <img src={preset} className="h-full w-full object-cover" alt="preset" referrerPolicy="no-referrer" />
+                        <img src={preset} className="h-full w-full object-cover" alt="preset" referrerPolicy="no-referrer" loading="lazy" />
                         {isSelected && (
-                          <div className="absolute inset-0 bg-orange-500/20 flex items-center justify-center">
+                          <div className="absolute inset-0 bg-primary-500/20 flex items-center justify-center">
                             <Check className="h-4 w-4 text-white stroke-[4]" />
                           </div>
                         )}
@@ -501,7 +509,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                   <div className="grid grid-cols-4 gap-3">
                     {images.map((img, idx) => (
                       <div key={idx} className="group relative h-16 rounded-xl overflow-hidden border border-gray-100">
-                        <img src={img.preview} className="h-full w-full object-cover" alt="Selected" referrerPolicy="no-referrer" />
+                        <img src={img.preview} className="h-full w-full object-cover" alt="Selected" referrerPolicy="no-referrer" loading="lazy" />
                         <button
                           type="button"
                           onClick={() => handleRemoveImage(idx)}
@@ -530,7 +538,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                   value={sellerPhone}
                   onChange={(e) => setSellerPhone(e.target.value)}
                   placeholder={getTranslation(language, 'phonePlaceholder')}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-800 font-mono focus:border-blue-500 outline-none transition-all"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-800 font-mono focus:border-primary-500 outline-none transition-all"
                 />
                 <p className="text-[10px] text-gray-400 mt-1">Numéro visible sur l'annonce pour les appels directs.</p>
               </div>
@@ -543,7 +551,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
                   value={sellerWhatsApp}
                   onChange={(e) => setSellerWhatsApp(e.target.value)}
                   placeholder={getTranslation(language, 'whatsAppPlaceholder')}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-800 font-mono focus:border-blue-500 outline-none transition-all"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-800 font-mono focus:border-primary-500 outline-none transition-all"
                 />
                 <p className="text-[10px] text-gray-400 mt-1">Si laissé vide, nous utiliserons le numéro de téléphone principal.</p>
               </div>
@@ -570,7 +578,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
           {step < 3 ? (
             <button
               onClick={handleNext}
-              className="flex items-center space-x-1.5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-blue-700 transition-all active:scale-95 shadow-md shadow-blue-100"
+              className="flex items-center space-x-1.5 rounded-xl bg-primary-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-primary-700 transition-all active:scale-95 shadow-md shadow-primary-100"
             >
               <span>{getTranslation(language, 'next')}</span>
               <ChevronRight className="h-4 w-4" />
@@ -579,7 +587,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({ onClose }) => {
             <button
               onClick={handleSubmit}
               disabled={loading}
-              className="flex items-center space-x-1.5 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 px-6 py-2.5 text-xs font-bold text-white hover:from-orange-600 hover:to-amber-600 transition-all active:scale-95 shadow-md shadow-orange-100"
+              className="flex items-center space-x-1.5 rounded-xl bg-gradient-to-tr from-primary-500 to-amber-500 px-6 py-2.5 text-xs font-bold text-white hover:from-primary-600 hover:to-amber-600 transition-all active:scale-95 shadow-md shadow-primary-100"
             >
               <span>{loading ? getTranslation(language, 'loading') : getTranslation(language, 'submit')}</span>
               <Check className="h-4 w-4" />

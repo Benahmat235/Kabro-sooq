@@ -26,6 +26,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ listing, onClose }) => {
   const whatsappUrl = `https://api.whatsapp.com/send?text=${encodedText}%20${encodedUrl}`;
   const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
   const telegramUrl = `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`;
+  const twitterUrl = `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(shareUrl)
@@ -85,14 +86,14 @@ export const ShareModal: React.FC<ShareModalProps> = ({ listing, onClose }) => {
         <button 
           onClick={onClose}
           aria-label="Fermer le menu de partage"
-          className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
           id="share-modal-close-btn"
         >
           <X className="h-4.5 w-4.5" />
         </button>
 
         <div className="text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600 mb-3.5">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary-50 text-primary-600 mb-3.5">
             <Share2 className="h-5 w-5" />
           </div>
           <h3 className="text-base font-black text-gray-900 tracking-tight" id="share-modal-title">
@@ -104,7 +105,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ listing, onClose }) => {
         </div>
 
         {/* Share Options Grid */}
-        <div className="mt-6 grid grid-cols-3 gap-3.5" id="share-channels-grid">
+        <div className="mt-6 grid grid-cols-4 gap-3.5" id="share-channels-grid">
           {/* WhatsApp */}
           <a
             href={whatsappUrl}
@@ -127,16 +128,32 @@ export const ShareModal: React.FC<ShareModalProps> = ({ listing, onClose }) => {
             href={facebookUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex flex-col items-center justify-center p-3 rounded-2xl border border-blue-100 bg-blue-50/20 hover:bg-blue-50/55 transition-all active:scale-95 text-center group"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl border border-primary-100 bg-primary-50/20 hover:bg-primary-50/55 transition-all active:scale-95 text-center group"
             id="share-facebook-link"
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white shadow-xs shadow-blue-100 group-hover:scale-105 transition-transform">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-600 text-white shadow-xs shadow-primary-100 group-hover:scale-105 transition-transform">
               {/* Facebook custom SVG */}
               <svg className="h-5 w-5 fill-current" viewBox="0 0 24 24">
                 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
               </svg>
             </div>
             <span className="text-[10px] font-bold text-gray-700 mt-2">Facebook</span>
+          </a>
+          
+          {/* Twitter (X) */}
+          <a
+            href={twitterUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-all active:scale-95 text-center group"
+            id="share-twitter-link"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-white shadow-xs shadow-gray-200 group-hover:scale-105 transition-transform">
+              <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+              </svg>
+            </div>
+            <span className="text-[10px] font-bold text-gray-700 mt-2">X</span>
           </a>
 
           {/* Telegram */}
@@ -169,13 +186,13 @@ export const ShareModal: React.FC<ShareModalProps> = ({ listing, onClose }) => {
           {/* Copy Link Button */}
           <button
             onClick={handleCopyLink}
-            className="flex w-full items-center justify-between rounded-xl border border-gray-150 bg-gray-50/50 p-3 text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex w-full items-center justify-between rounded-xl border border-gray-150 bg-gray-50/50 p-3 text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
             id="share-copy-btn"
           >
             <span className="truncate max-w-[200px] text-left font-mono font-medium text-gray-500">
               {shareUrl}
             </span>
-            <div className="flex items-center space-x-1.5 shrink-0 text-blue-600 pl-2">
+            <div className="flex items-center space-x-1.5 shrink-0 text-primary-600 pl-2">
               {copied ? (
                 <>
                   <Check className="h-4 w-4 text-green-500" />
@@ -194,7 +211,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ listing, onClose }) => {
           {isWebShareSupported && (
             <button
               onClick={handleNativeShare}
-              className="flex w-full items-center justify-center space-x-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white p-3 text-xs font-bold shadow-md shadow-blue-100 transition-all active:scale-98"
+              className="flex w-full items-center justify-center space-x-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white p-3 text-xs font-bold shadow-md shadow-primary-100 transition-all active:scale-98"
               id="share-native-btn"
             >
               <Share2 className="h-4 w-4" />

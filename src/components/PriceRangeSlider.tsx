@@ -68,7 +68,7 @@ export const PriceRangeSlider: React.FC<PriceRangeSliderProps> = ({
           height: 18px;
           width: 18px;
           border-radius: 50%;
-          background: #f97316; /* Tailwind orange-500 */
+          background: #f97316; /* Tailwind primary-500 */
           border: 2px solid #ffffff;
           cursor: pointer;
           pointer-events: auto;
@@ -79,7 +79,7 @@ export const PriceRangeSlider: React.FC<PriceRangeSliderProps> = ({
         }
         .range-slider-input::-webkit-slider-thumb:hover {
           transform: scale(1.15);
-          background: #ea580c; /* Tailwind orange-600 */
+          background: #ea580c; /* Tailwind primary-600 */
         }
         .range-slider-input::-webkit-slider-thumb:active {
           transform: scale(0.95);
@@ -137,7 +137,7 @@ export const PriceRangeSlider: React.FC<PriceRangeSliderProps> = ({
         {/* Track behind inputs */}
         <div className="absolute left-0 right-0 h-1.5 bg-gray-100 rounded-full overflow-hidden">
           <div
-            className="absolute h-full bg-gradient-to-r from-orange-400 to-orange-600 rounded-full"
+            className="absolute h-full bg-gradient-to-r from-primary-400 to-primary-600 rounded-full"
             style={{
               left: `${minPercent}%`,
               right: `${100 - maxPercent}%`,

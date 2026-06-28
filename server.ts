@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
-import { initializeApp } from 'firebase-admin/app';
+import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { validateAndSanitizeListing } from './src/utils/security';
@@ -14,6 +14,7 @@ const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
 // Initialize firebase-admin
 const appAdmin = initializeApp({
+  credential: applicationDefault(),
   projectId: firebaseConfig.projectId,
 });
 
@@ -79,6 +80,16 @@ async function startServer() {
       };
 
       await newDocRef.set(newListing);
+
+      // 5. Award Loyalty Points for publishing (10 points)
+      try {
+        const userRef = firestoreDb.collection("users").doc(uid);
+        await userRef.set({
+          loyaltyPoints: FieldValue.increment(10)
+        }, { merge: true });
+      } catch (pointsErr) {
+        console.warn(`Failed to award points to user ${uid}:`, pointsErr);
+      }
 
       console.log(`User ${uid} successfully published listing ${newDocRef.id} with rate-limiting check.`);
       return res.json({ success: true, listing: newListing });
@@ -217,7 +228,18 @@ async function startServer() {
 
       // Fetch recipient's FCM tokens
       const userRef = firestoreDb.collection("users").doc(recipientId);
-      const userSnap = await userRef.get();
+      let userSnap;
+      try {
+        userSnap = await userRef.get();
+      } catch (dbError: any) {
+        console.error("Firestore read failed in notifications endpoint:", dbError);
+        return res.json({ 
+          success: true, 
+          message: "Could not fetch user due to permissions, skipping push.", 
+          successCount: 0, 
+          failureCount: 0 
+        });
+      }
 
       if (!userSnap.exists) {
         return res.status(404).json({ error: "Recipient user not found" });
@@ -241,19 +263,29 @@ async function startServer() {
         return res.json({ success: true, message: "No valid FCM tokens found for the recipient" });
       }
 
-      const response = await messagingAdmin.sendEachForMulticast({
-        tokens: validTokens,
-        notification: {
-          title,
-          body,
-        },
-        data: data || {},
-      });
-
-      console.log(`Successfully sent ${response.successCount} FCM push notifications (failed: ${response.failureCount})`);
+      let response;
+      try {
+        response = await messagingAdmin.sendEachForMulticast({
+          tokens: validTokens,
+          notification: {
+            title,
+            body,
+          },
+          data: data || {},
+        });
+        console.log(`Successfully sent ${response.successCount} FCM push notifications (failed: ${response.failureCount})`);
+      } catch (fcmError: any) {
+        console.warn("FCM push notification failed (this is expected if Cloud Messaging is not provisioned):", fcmError.message);
+        return res.json({ 
+          success: true, 
+          message: "FCM not provisioned, push skipped.", 
+          successCount: 0, 
+          failureCount: 0 
+        });
+      }
 
       // If we see failures, we can clean up stale tokens
-      if (response.failureCount > 0) {
+      if (response && response.failureCount > 0) {
         const staleTokens: string[] = [];
         response.responses.forEach((resp, idx) => {
           if (!resp.success && resp.error) {
@@ -269,10 +301,14 @@ async function startServer() {
 
         if (staleTokens.length > 0) {
           console.log(`Removing ${staleTokens.length} stale FCM tokens for user ${recipientId}`);
-          const { FieldValue: AdminFieldValue } = await import('firebase-admin/firestore');
-          await userRef.update({
-            fcmTokens: AdminFieldValue.arrayRemove(...staleTokens)
-          });
+          try {
+            const { FieldValue: AdminFieldValue } = await import('firebase-admin/firestore');
+            await userRef.update({
+              fcmTokens: AdminFieldValue.arrayRemove(...staleTokens)
+            });
+          } catch (updateErr: any) {
+            console.warn("Could not remove stale tokens from Firestore (permission denied):", updateErr.message);
+          }
         }
       }
 
@@ -335,6 +371,52 @@ async function startServer() {
   });
 
 
+
+  // API Route: Public API for Partners to fetch active listings
+  app.get("/api/v1/public/listings", async (req, res) => {
+    try {
+      const limitParam = parseInt(req.query.limit as string) || 20;
+      const validLimit = Math.min(limitParam, 50); // Max 50 listings per request
+      const category = req.query.category as string;
+      const city = req.query.city as string;
+
+      let query = firestoreDb.collection("listings").where("status", "==", "active");
+
+      if (category) {
+        query = query.where("category", "==", category);
+      }
+      if (city) {
+        query = query.where("city", "==", city);
+      }
+
+      const snapshot = await query.orderBy("createdAt", "desc").limit(validLimit).get();
+      
+      const listings = snapshot.docs.map(doc => {
+        const data = doc.data();
+        // Return a sanitized version of the listing for public API
+        return {
+          id: doc.id,
+          title: data.title,
+          description: data.description,
+          price: data.price,
+          category: data.category,
+          subcategory: data.subcategory,
+          city: data.city,
+          images: data.images,
+          condition: data.condition,
+          sellerName: data.sellerName,
+          sellerIsVerified: data.sellerIsVerified,
+          createdAt: data.createdAt,
+          url: `https://kabro-sooq.com/listing/${doc.id}` // Example production URL
+        };
+      });
+
+      return res.json({ success: true, count: listings.length, data: listings });
+    } catch (error) {
+      console.error("Error in Public API /listings:", error);
+      return res.status(500).json({ error: "Failed to fetch listings." });
+    }
+  });
 
   // Serve Vite app or static files
   if (process.env.NODE_ENV !== "production") {

@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { getTranslation } from '../utils/translations';
-import { CITIES, MOCK_WEATHER } from '../data/mockData';
+import { CITIES, MOCK_WEATHER, CATEGORIES } from '../data/mockData';
 import { loginWithGoogle, logout } from '../lib/firebase';
 import { CloudSun, Globe, User, LogOut, MapPin, LogIn, ChevronDown, Search, Check } from 'lucide-react';
 import { CityType, LanguageType } from '../types';
 import tchadData from '../data/tchadData.json';
+import { CitySelector } from './ui/CitySelector';
 
 const LANGUAGES: LanguageType[] = ['FR', 'AR', 'EN'];
 
@@ -22,8 +24,25 @@ export const Header: React.FC = () => {
   } = useApp();
 
   const [langOpen, setLangOpen] = useState(false);
-  const [cityOpen, setCityOpen] = useState(false);
-  const [citySearchQuery, setCitySearchQuery] = useState('');
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('recentSearches');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  
+  const navigate = useNavigate();
+
+  const addRecentSearch = (query: string) => {
+    if (!query.trim()) return;
+    const newSearches = [query, ...recentSearches.filter(s => s !== query)].slice(0, 5);
+    setRecentSearches(newSearches);
+    localStorage.setItem('recentSearches', JSON.stringify(newSearches));
+  };
 
   const currentWeather = (selectedCity !== 'all' 
     ? MOCK_WEATHER[selectedCity] 
@@ -42,12 +61,12 @@ export const Header: React.FC = () => {
   const totalActiveListings = listings ? listings.filter(l => l.status === 'active').length : 0;
 
   const filteredDropdownCities = useMemo(() => {
-    if (!citySearchQuery) return CITIES;
+    if (!globalSearchQuery) return CITIES;
     return CITIES.filter(city => 
-      city.toLowerCase().includes(citySearchQuery.toLowerCase()) ||
-      getRegionForCity(city).toLowerCase().includes(citySearchQuery.toLowerCase())
+      city.toLowerCase().includes(globalSearchQuery.toLowerCase()) ||
+      getRegionForCity(city).toLowerCase().includes(globalSearchQuery.toLowerCase())
     );
-  }, [citySearchQuery, listings]);
+  }, [globalSearchQuery, listings]);
 
   const handleLogin = async () => {
     try {
@@ -71,7 +90,7 @@ export const Header: React.FC = () => {
         
         {/* Logo & Tagline */}
         <div className="flex items-center space-x-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 font-bold text-white shadow-md shadow-blue-200" aria-hidden="true">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-600 font-bold text-white shadow-md shadow-primary-200" aria-hidden="true">
             KS
           </div>
           <div className="hidden sm:block">
@@ -84,145 +103,163 @@ export const Header: React.FC = () => {
           </div>
         </div>
 
+        {/* Global Search Bar */}
+        <div className="hidden md:flex flex-1 max-w-xl mx-8 relative">
+          <div className="flex w-full items-center rounded-2xl bg-gray-50 border border-gray-100 px-3.5 py-2 shadow-sm focus-within:ring-2 focus-within:ring-primary-500 focus-within:bg-white transition-all">
+            <Search className="h-4 w-4 text-gray-400 shrink-0" aria-hidden="true" />
+            <input
+              type="text"
+              value={globalSearchQuery}
+              onChange={(e) => {
+                setGlobalSearchQuery(e.target.value);
+                setGlobalSearchOpen(true); // Open suggestions
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && globalSearchQuery.trim()) {
+                  addRecentSearch(globalSearchQuery.trim());
+                  // Optionally navigate to a search results page here if implemented
+                  setGlobalSearchOpen(false);
+                }
+              }}
+              onFocus={() => setGlobalSearchOpen(true)}
+              placeholder="Rechercher des annonces, catégories ou villes..."
+              className="w-full bg-transparent px-3 text-sm font-semibold text-gray-700 placeholder-gray-400 focus:outline-none"
+            />
+          </div>
+          
+          {globalSearchOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setGlobalSearchOpen(false)} />
+              <div className="absolute top-full left-0 right-0 mt-2 rounded-2xl border border-gray-100 bg-white shadow-xl z-20 max-h-[420px] overflow-y-auto p-2">
+                
+                {/* Recent Searches */}
+                {!globalSearchQuery && recentSearches.length > 0 && (
+                  <div className="mb-2">
+                    <div className="px-3 py-1.5 flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase text-gray-400">Recherches récentes</span>
+                      <button 
+                        onClick={() => {
+                          setRecentSearches([]);
+                          localStorage.removeItem('recentSearches');
+                        }}
+                        className="text-[10px] text-primary-500 hover:text-primary-600 font-bold"
+                      >
+                        Effacer
+                      </button>
+                    </div>
+                    {recentSearches.map((search) => (
+                      <button
+                        key={search}
+                        onClick={() => {
+                          setGlobalSearchQuery(search);
+                        }}
+                        className="w-full flex items-center space-x-2 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 text-left"
+                      >
+                        <Search className="h-3.5 w-3.5 text-gray-400" />
+                        <span>{search}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {globalSearchQuery && CATEGORIES.filter(c => c.name.toLowerCase().includes(globalSearchQuery.toLowerCase())).length > 0 && (
+                  <div className="mb-2">
+                    <div className="px-3 py-1.5 text-[10px] font-black uppercase text-gray-400">Catégories</div>
+                    {CATEGORIES.filter(c => c.name.toLowerCase().includes(globalSearchQuery.toLowerCase())).slice(0, 3).map((cat) => (
+                      <button
+                        key={cat.name}
+                        onClick={() => {
+                          addRecentSearch(cat.name);
+                          navigate(`/?category=${cat.name}`);
+                          setGlobalSearchQuery('');
+                          setGlobalSearchOpen(false);
+                        }}
+                        className="w-full flex items-center space-x-2 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 text-left"
+                      >
+                        <Search className="h-3.5 w-3.5 text-gray-400" />
+                        <span>{cat.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {globalSearchQuery && filteredDropdownCities.length > 0 && (
+                  <div className="mb-2">
+                    <div className="px-3 py-1.5 text-[10px] font-black uppercase text-gray-400">Villes</div>
+                    {filteredDropdownCities.slice(0, 3).map((city) => (
+                      <button
+                        key={city}
+                        onClick={() => {
+                          addRecentSearch(city);
+                          setSelectedCity(city);
+                          setGlobalSearchQuery('');
+                          setGlobalSearchOpen(false);
+                        }}
+                        className="w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 text-left"
+                      >
+                        <span className="flex items-center space-x-2">
+                          <MapPin className="h-3.5 w-3.5 text-primary-500" />
+                          <span>{city}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                
+                {globalSearchQuery && listings?.filter(l => l.status === 'active' && l.title.toLowerCase().includes(globalSearchQuery.toLowerCase())).slice(0, 4).length > 0 && (
+                  <div>
+                    <div className="px-3 py-1.5 text-[10px] font-black uppercase text-gray-400">Annonces</div>
+                    {listings.filter(l => l.status === 'active' && l.title.toLowerCase().includes(globalSearchQuery.toLowerCase())).slice(0, 4).map((listing) => (
+                      <button
+                        key={listing.id}
+                        onClick={() => {
+                          addRecentSearch(listing.title);
+                          navigate(`/listing/${listing.id}`);
+                          setGlobalSearchQuery('');
+                          setGlobalSearchOpen(false);
+                        }}
+                        className="w-full flex items-center space-x-3 rounded-xl px-3 py-2 text-left hover:bg-gray-50"
+                      >
+                        {listing.images?.[0] ? (
+                          <img src={listing.images[0]} className="h-8 w-11 object-cover rounded bg-gray-100" alt="" />
+                        ) : (
+                          <div className="h-8 w-11 bg-gray-100 rounded" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-gray-800 truncate">{listing.title}</p>
+                          <p className="text-[10px] text-primary-600 font-bold">{listing.price.toLocaleString()} FCFA</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
         {/* Dynamic Context (City & Weather) */}
         <div className="flex items-center space-x-4">
           
           {/* City Selector */}
-          <div className="relative">
-            <button
-              onClick={() => setCityOpen(!cityOpen)}
-              aria-haspopup="true"
-              aria-expanded={cityOpen}
-              aria-label="Sélectionner la ville de recherche"
-              className="flex items-center space-x-1.5 rounded-full bg-gray-50 px-3.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-              id="city-selector-btn"
-            >
-              <MapPin className="h-3.5 w-3.5 text-blue-600" aria-hidden="true" />
-              <span>
-                {selectedCity === 'all' 
-                  ? getTranslation(language, 'allCities') 
-                  : selectedCity}
-              </span>
-              <ChevronDown className="h-3 w-3 text-gray-500" aria-hidden="true" />
-            </button>
-
-            {cityOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => {
-                  setCityOpen(false);
-                  setCitySearchQuery('');
-                }} />
-                <div className="absolute right-0 mt-2 w-72 rounded-3xl border border-gray-100 bg-white shadow-2xl z-20 overflow-hidden divide-y divide-gray-50/80 animate-in fade-in slide-in-from-top-2 duration-200" role="dialog" aria-label="Sélection de ville">
-                  {/* Search box inside the city dropdown */}
-                  <div className="p-3 bg-gray-50/30 flex items-center space-x-2">
-                    <Search className="h-3.5 w-3.5 text-gray-500 shrink-0" aria-hidden="true" />
-                    <input
-                      type="text"
-                      placeholder="Rechercher une ville ou région..."
-                      aria-label="Rechercher une ville ou région"
-                      value={citySearchQuery}
-                      onChange={(e) => setCitySearchQuery(e.target.value)}
-                      className="w-full bg-transparent text-xs font-semibold text-gray-700 placeholder-gray-400 focus:outline-none"
-                    />
-                    {citySearchQuery && (
-                      <button 
-                        onClick={() => setCitySearchQuery('')} 
-                        className="text-[10px] text-gray-500 hover:text-gray-700 font-black"
-                      >
-                        Vider
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="max-h-64 overflow-y-auto p-1.5 space-y-0.5" role="listbox">
-                    {!citySearchQuery && (
-                      <button
-                        onClick={() => {
-                          setSelectedCity('all');
-                          setCityOpen(false);
-                          setCitySearchQuery('');
-                        }}
-                        role="option"
-                        aria-selected={selectedCity === 'all'}
-                        className={`w-full flex items-center justify-between rounded-xl px-3 py-2.5 text-xs text-left transition-colors ${
-                          selectedCity === 'all' 
-                            ? 'bg-blue-50 text-blue-700 font-bold' 
-                            : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        <span className="flex items-center space-x-2 font-bold">
-                          <Globe className="h-3.5 w-3.5 text-blue-500 shrink-0" aria-hidden="true" />
-                          <span>{getTranslation(language, 'allCities')}</span>
-                        </span>
-                        <div className="flex items-center space-x-2">
-                          <span className="rounded-lg bg-blue-100/50 px-1.5 py-0.5 text-[9px] font-black text-blue-600 font-mono">
-                            {totalActiveListings}
-                          </span>
-                          {selectedCity === 'all' && <Check className="h-3.5 w-3.5 text-blue-600 shrink-0" aria-hidden="true" />}
-                        </div>
-                      </button>
-                    )}
-
-                    {filteredDropdownCities.map((city) => {
-                      const regionName = getRegionForCity(city);
-                      const isSelected = selectedCity === city;
-                      const count = getListingCountForCity(city);
-                      return (
-                        <button
-                          key={city}
-                          onClick={() => {
-                            setSelectedCity(city);
-                            setCityOpen(false);
-                            setCitySearchQuery('');
-                          }}
-                          role="option"
-                          aria-selected={isSelected}
-                          className={`w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs text-left transition-colors ${
-                            isSelected 
-                              ? 'bg-blue-50 text-blue-700 font-bold' 
-                              : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex flex-col min-w-0 pr-2">
-                            <span className="font-bold text-gray-800 truncate">{city}</span>
-                            <span className="text-[9px] text-gray-500 font-semibold truncate mt-0.5">
-                              {regionName ? `Région : ${regionName}` : 'Tchad'}
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-2 shrink-0">
-                            {count > 0 ? (
-                              <span className="rounded-lg bg-orange-100/60 px-1.5 py-0.5 text-[9px] font-black text-orange-700 font-mono">
-                                {count} {count === 1 ? 'annonce' : 'annonces'}
-                              </span>
-                            ) : (
-                              <span className="text-[9px] text-gray-400 font-bold font-mono">
-                                0
-                              </span>
-                            )}
-                            {isSelected && <Check className="h-3.5 w-3.5 text-blue-600 shrink-0" aria-hidden="true" />}
-                          </div>
-                        </button>
-                      );
-                    })}
-
-                    {filteredDropdownCities.length === 0 && (
-                      <div className="p-6 text-center text-xs text-gray-500 font-medium">
-                        Aucune ville ou région trouvée
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+          <CitySelector
+            selectedCity={selectedCity}
+            onSelect={(city) => setSelectedCity(city)}
+            listingCounts={listings?.filter(l => l.status === 'active').reduce((acc, l) => {
+              acc[l.city] = (acc[l.city] || 0) + 1;
+              return acc;
+            }, {} as Record<string, number>)}
+            totalActiveListings={totalActiveListings}
+            allCitiesLabel={getTranslation(language, 'allCities')}
+          />
 
           {/* Local Weather */}
-          <div className="hidden md:flex items-center space-x-2 rounded-full border border-orange-100 bg-orange-50/50 px-3.5 py-1.5 text-xs text-orange-800" aria-label={`Météo actuelle : ${selectedCity === 'all' ? "N'Djaména" : selectedCity}, ${currentWeather.temp} degrés, ${currentWeather.condition}`}>
-            <CloudSun className="h-4 w-4 text-orange-500 animate-pulse" aria-hidden="true" />
+          <div className="hidden md:flex items-center space-x-2 rounded-full border border-primary-100 bg-primary-50/50 px-3.5 py-1.5 text-xs text-primary-800" aria-label={`Météo actuelle : ${selectedCity === 'all' ? "N'Djaména" : selectedCity}, ${currentWeather.temp} degrés, ${currentWeather.condition}`}>
+            <CloudSun className="h-4 w-4 text-primary-500 animate-pulse" aria-hidden="true" />
             <span className="font-mono font-medium">
               {selectedCity === 'all' ? "N'Djaména" : selectedCity}: {currentWeather.temp}°C
             </span>
-            <span className="text-orange-600 font-sans text-[10px] font-semibold">
+            <span className="text-primary-600 font-sans text-[10px] font-semibold">
               ({currentWeather.condition})
             </span>
           </div>
@@ -234,7 +271,7 @@ export const Header: React.FC = () => {
               aria-haspopup="true"
               aria-expanded={langOpen}
               aria-label="Sélectionner la langue"
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all border border-gray-100"
+              className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-gray-100 text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all border border-gray-100"
               id="lang-selector-btn"
             >
               <Globe className="h-4 w-4" aria-hidden="true" />
@@ -251,7 +288,7 @@ export const Header: React.FC = () => {
                         setLanguage(lang);
                         setLangOpen(false);
                       }}
-                      className={`w-full text-center rounded-xl px-3 py-1.5 text-xs font-bold ${language === lang ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'}`}
+                      className={`w-full text-center rounded-xl px-3 py-1.5 text-xs font-bold ${language === lang ? 'bg-primary-50 text-primary-600' : 'text-gray-700 hover:bg-gray-50'}`}
                     >
                       {lang === 'FR' ? 'Français' : lang === 'AR' ? 'العربية' : 'English'}
                     </button>
@@ -270,12 +307,12 @@ export const Header: React.FC = () => {
                     <button
                       aria-label="Menu profil utilisateur"
                       aria-haspopup="true"
-                      className="focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full block"
+                      className="focus:outline-none focus:ring-2 focus:ring-primary-500 rounded-full block"
                     >
                       <img 
                         src={user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${user.displayName}`} 
                         alt={user.displayName || "User"} 
-                        className="h-8 w-8 rounded-full border-2 border-blue-100 shadow-sm"
+                        className="h-10 w-10 rounded-full border-2 border-primary-100 shadow-sm"
                         referrerPolicy="no-referrer"
                       />
                     </button>
@@ -297,7 +334,7 @@ export const Header: React.FC = () => {
                 <button
                   onClick={handleLogin}
                   aria-label="Se connecter avec Google"
-                  className="flex items-center space-x-1.5 rounded-full bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white shadow-md shadow-blue-200 hover:bg-blue-700 hover:shadow-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  className="flex items-center space-x-1.5 rounded-full bg-primary-600 px-4 py-1.5 text-xs font-semibold text-white shadow-md shadow-primary-200 hover:bg-primary-700 hover:shadow-none focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
                   id="google-signin-btn"
                 >
                   <LogIn className="h-3.5 w-3.5" aria-hidden="true" />

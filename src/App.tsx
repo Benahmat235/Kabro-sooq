@@ -12,6 +12,8 @@ import { Toaster } from 'react-hot-toast';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 
+import { LayoutProvider } from './components/LayoutProvider';
+
 // Lazy load page components
 const HomePage = lazy(() => import('./pages/HomePage').then(module => ({ default: module.HomePage })));
 const ListingDetailPage = lazy(() => import('./pages/ListingDetailPage').then(module => ({ default: module.ListingDetailPage })));
@@ -19,6 +21,7 @@ const PublishPage = lazy(() => import('./pages/PublishPage').then(module => ({ d
 const MessagesPage = lazy(() => import('./pages/MessagesPage').then(module => ({ default: module.MessagesPage })));
 const MyAdsPage = lazy(() => import('./pages/MyAdsPage').then(module => ({ default: module.MyAdsPage })));
 const AccountPage = lazy(() => import('./pages/AccountPage').then(module => ({ default: module.AccountPage })));
+const SellerProfilePage = lazy(() => import('./pages/SellerProfilePage').then(module => ({ default: module.SellerProfilePage })));
 
 function AppContent() {
   const {
@@ -55,6 +58,7 @@ function AppContent() {
               <Route path="/messages" element={<MessagesPage />} />
               <Route path="/my-ads" element={<MyAdsPage />} />
               <Route path="/account" element={<AccountPage />} />
+              <Route path="/seller/:id" element={<SellerProfilePage />} />
             </Routes>
           </Suspense>
         </AnimatePresence>
@@ -67,40 +71,44 @@ function AppContent() {
 }
 
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { TutorialTour } from './components/TutorialTour';
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
         <AppProvider>
-          <BrowserRouter>
-            <AppContent />
-            <Toaster 
-              position="bottom-right" 
-              toastOptions={{
-                duration: 4000,
-                style: {
-                  background: '#333',
-                  color: '#fff',
-                  fontSize: '13px',
-                  borderRadius: '12px',
-                  padding: '10px 16px',
-                },
-                success: {
+          <LayoutProvider>
+            <BrowserRouter>
+              <AppContent />
+              <Toaster 
+                position="bottom-right" 
+                toastOptions={{
+                  duration: 4000,
                   style: {
-                    background: '#10B981',
+                    background: '#333',
                     color: '#fff',
+                    fontSize: '13px',
+                    borderRadius: '12px',
+                    padding: '10px 16px',
                   },
-                },
-                error: {
-                  style: {
-                    background: '#EF4444',
-                    color: '#fff',
+                  success: {
+                    style: {
+                      background: '#10B981',
+                      color: '#fff',
+                    },
                   },
-                },
-              }}
-            />
-          </BrowserRouter>
+                  error: {
+                    style: {
+                      background: '#EF4444',
+                      color: '#fff',
+                    },
+                  },
+                }}
+              />
+              <TutorialTour />
+            </BrowserRouter>
+          </LayoutProvider>
         </AppProvider>
       </ErrorBoundary>
     </QueryClientProvider>

@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { Listing, LanguageType } from '../types';
 import { getTranslation } from '../utils/translations';
 import { useApp } from '../context/AppContext';
-import { MapPin, CheckCircle2, Eye, Heart } from 'lucide-react';
+import { MapPin, CheckCircle2, Eye, Heart, Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface ListingCardProps {
@@ -20,7 +20,7 @@ const getConditionBadge = (cond: string, language: LanguageType) => {
     case 'new':
       return { text: getTranslation(language, 'new'), bg: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
     case 'excellent':
-      return { text: getTranslation(language, 'excellent'), bg: 'bg-blue-50 text-blue-700 border-blue-100' };
+      return { text: getTranslation(language, 'excellent'), bg: 'bg-primary-50 text-primary-700 border-primary-100' };
     case 'good':
       return { text: getTranslation(language, 'good'), bg: 'bg-amber-50 text-amber-700 border-amber-100' };
     default:
@@ -63,7 +63,7 @@ export const ListingCard: React.FC<ListingCardProps> = React.memo(({ listing, on
       role="button"
       tabIndex={0}
       aria-label={`${listing.title}, ${formatPrice(listing.price)}. ${getTranslation(language, 'condition')} : ${conditionStyle.text}. Ville : ${listing.city}`}
-      className="group relative flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white p-2.5 shadow-sm hover:shadow-md hover:border-gray-200/80 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="group relative flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white p-2.5 shadow-sm hover:shadow-md hover:border-gray-200/80 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500"
       id={`listing-card-${listing.id}`}
     >
       {/* Clean image container */}
@@ -73,17 +73,26 @@ export const ListingCard: React.FC<ListingCardProps> = React.memo(({ listing, on
           alt={listing.title}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           loading="lazy"
+          decoding="async"
           referrerPolicy="no-referrer"
         />
+
+        {/* Premium Badge */}
+        {listing.isPremium && (
+          <div className="absolute top-2 left-2 z-10 flex items-center space-x-1 rounded-full bg-amber-500/95 px-2 py-1 shadow-sm backdrop-blur-sm">
+            <Sparkles className="h-3 w-3 text-white" />
+            <span className="text-[9px] font-black uppercase tracking-wider text-white">Premium</span>
+          </div>
+        )}
 
         {/* Favorite button */}
         <button
           onClick={handleToggleFavorite}
           aria-label={isSaved ? "Retirer des favoris" : "Ajouter aux favoris"}
-          className="absolute top-2.5 right-2.5 flex h-7 w-7 items-center justify-center rounded-full bg-white/95 shadow-md hover:scale-110 active:scale-95 transition-transform z-10 focus:outline-none focus:ring-2 focus:ring-red-500"
+          className="absolute top-2 right-2 flex h-9 w-9 items-center justify-center rounded-full bg-white/95 shadow-md hover:scale-110 active:scale-95 transition-transform z-10 focus:outline-none focus:ring-2 focus:ring-red-500"
         >
           <Heart 
-            className={`h-4 w-4 transition-colors ${isSaved ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} 
+            className={`h-4.5 w-4.5 transition-colors ${isSaved ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} 
             aria-hidden="true"
           />
         </button>
@@ -125,7 +134,7 @@ export const ListingCard: React.FC<ListingCardProps> = React.memo(({ listing, on
         </div>
 
         {/* Listing Title */}
-        <h3 className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-1 font-sans">
+        <h3 className="text-sm font-bold text-gray-900 group-hover:text-primary-600 transition-colors line-clamp-1 font-sans">
           {listing.title}
         </h3>
 
@@ -135,7 +144,7 @@ export const ListingCard: React.FC<ListingCardProps> = React.memo(({ listing, on
             <MapPin className="h-3 w-3 text-gray-400 shrink-0" aria-hidden="true" />
             <span className="truncate">{listing.city}</span>
             {distance !== undefined && (
-              <span className="rounded bg-orange-50 px-1 py-0.5 text-[8px] font-black text-orange-600 font-mono shrink-0">
+              <span className="rounded bg-primary-50 px-1 py-0.5 text-[8px] font-black text-primary-600 font-mono shrink-0">
                 {distance < 1 ? "<1" : Math.round(distance)} km
               </span>
             )}
@@ -154,14 +163,14 @@ export const ListingCard: React.FC<ListingCardProps> = React.memo(({ listing, on
 
         {/* Price Row */}
         <div className="mt-2.5 flex items-baseline justify-between pt-1 border-t border-gray-50">
-          <span className="text-sm font-black text-blue-600 font-mono tracking-tight">
+          <span className="text-sm font-black text-primary-600 font-mono tracking-tight">
             {formatPrice(listing.price)}
           </span>
         </div>
 
         {/* Seller info */}
         <div className="mt-3 flex items-center space-x-2 rounded-xl bg-gray-50/50 p-1.5 border border-gray-50/80">
-          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-600 text-[10px] font-bold shrink-0" aria-hidden="true">
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-primary-600 text-[10px] font-bold shrink-0" aria-hidden="true">
             {listing.sellerName.slice(0, 2).toUpperCase()}
           </div>
           <div className="overflow-hidden flex-1">
@@ -169,8 +178,8 @@ export const ListingCard: React.FC<ListingCardProps> = React.memo(({ listing, on
               {listing.sellerName}
             </p>
             {listing.sellerIsVerified ? (
-              <div className="flex items-center space-x-0.5 text-blue-600 leading-none mt-0.5">
-                <CheckCircle2 className="h-2.5 w-2.5 fill-blue-600 text-white" aria-hidden="true" />
+              <div className="flex items-center space-x-0.5 text-primary-600 leading-none mt-0.5">
+                <CheckCircle2 className="h-2.5 w-2.5 fill-primary-600 text-white" aria-hidden="true" />
                 <span className="text-[7.5px] font-bold uppercase tracking-wider">{getTranslation(language, 'verifiedSeller')}</span>
               </div>
             ) : (

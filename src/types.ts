@@ -1,6 +1,6 @@
 import tchadData from './data/tchadData.json';
 
-export type CategoryType = "Véhicules" | "Immobilier" | "Téléphones" | "Emploi" | "Services" | "Animaux";
+export type CategoryType = string;
 
 export type CityType = string;
 
@@ -16,6 +16,7 @@ export interface Listing {
   description: string;
   price: number;
   category: CategoryType;
+  subcategory?: string;
   city: CityType;
   arrondissement?: string;
   quartier?: string;
@@ -30,7 +31,10 @@ export interface Listing {
   createdAt: string; // Timestamp or string
   status: ListingStatusType;
   viewsCount: number;
+  contactCount?: number;
+  renewedAt?: string;
   quantity?: number;
+  isPremium?: boolean; // Added for boosted listings
 }
 
 export interface UserProfile {
@@ -39,6 +43,8 @@ export interface UserProfile {
   email: string;
   avatarUrl?: string;
   createdAt: string;
+  isVerified?: boolean;
+  loyaltyPoints?: number;
 }
 
 export interface FirestoreUserDoc {
@@ -47,9 +53,13 @@ export interface FirestoreUserDoc {
   avatarUrl?: string;
   createdAt: string;
   savedListings?: string[];
+  priceAlerts?: string[];
+  followedSellers?: string[];
   fcmTokens?: string[];
   mfaEnabled?: boolean;
   mfaPhone?: string;
+  isVerified?: boolean;
+  loyaltyPoints?: number;
 }
 
 export interface PublicUserProfileDTO {
@@ -74,14 +84,21 @@ export interface Chat {
   participantIds: string[];
   unreadCount?: { [userId: string]: number };
   typing?: { [userId: string]: boolean };
+  archivedBy?: string[];
 }
 
 export interface Message {
   id: string;
   senderId: string;
   text: string;
+  imageUrl?: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentType?: string;
   createdAt: string;
   seen?: boolean;
+  flagged?: boolean;
+  flaggedReason?: string;
 }
 
 export interface WeatherInfo {
@@ -119,7 +136,7 @@ export interface Report {
 }
 
 export const isCategoryType = (value: string): value is CategoryType => {
-  return ["Véhicules", "Immobilier", "Téléphones", "Emploi", "Services", "Animaux"].includes(value);
+  return typeof value === 'string';
 };
 
 export const isCityType = (value: string): value is CityType => {
@@ -131,7 +148,7 @@ export const isConditionType = (value: string): value is ConditionType => {
 };
 
 export const isCategoryOrAll = (value: string): value is CategoryType | 'all' => {
-  return value === 'all' || isCategoryType(value);
+  return typeof value === 'string';
 };
 
 export const isConditionOrAll = (value: string): value is ConditionType | 'all' => {

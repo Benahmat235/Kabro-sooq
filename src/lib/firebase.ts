@@ -156,3 +156,34 @@ export async function uploadListingImage(file: File, userId: string): Promise<st
   return downloadURL;
 }
 
+export async function uploadChatImage(file: File, userId: string): Promise<string> {
+  let fileToUpload = file;
+
+  if (file.type.startsWith('image/')) {
+    try {
+      const options = {
+        maxSizeMB: 0.8,
+        maxWidthOrHeight: 1200,
+        useWebWorker: true,
+      };
+
+      const compressedFile = await imageCompression(file, options);
+      fileToUpload = new File([compressedFile], file.name, {
+        type: compressedFile.type,
+        lastModified: Date.now(),
+      });
+    } catch (compressError) {
+      logger.error('Client-side image compression failed, uploading original file', compressError);
+    }
+  }
+
+  const fileExtension = fileToUpload.name.split('.').pop() || 'jpg';
+  const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 11)}.${fileExtension}`;
+  const storageRef = ref(storage, `chats/${userId}/${fileName}`);
+  
+  const snapshot = await uploadBytes(storageRef, fileToUpload);
+  const downloadURL = await getDownloadURL(snapshot.ref);
+  return downloadURL;
+}
+
+

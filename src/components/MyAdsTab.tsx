@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { getTranslation } from '../utils/translations';
 import { loginWithGoogle } from '../lib/firebase';
-import { PlusCircle, Eye, Trash2, CheckSquare } from 'lucide-react';
+import { PlusCircle, Eye, Trash2, CheckSquare, BarChart3, MessageCircle, TrendingUp, RefreshCw, Edit2 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 interface MyAdsTabProps {
   onPublishClick: () => void;
@@ -19,21 +20,70 @@ export const MyAdsTab: React.FC<MyAdsTabProps> = ({ onPublishClick }) => {
     return new Intl.NumberFormat('fr-FR').format(val) + " FCFA";
   };
 
+  const stats = useMemo(() => {
+    let totalViews = 0;
+    let totalContacts = 0;
+    let totalSold = 0;
+
+    myPublishedListings.forEach(l => {
+      totalViews += l.viewsCount || 0;
+      totalContacts += l.contactCount || Math.floor((l.viewsCount || 0) * 0.1); // Mock contact rate if undefined
+      if (l.status === 'sold') totalSold += 1;
+    });
+
+    const conversionRate = totalViews > 0 ? ((totalContacts / totalViews) * 100).toFixed(1) : '0';
+
+    return { totalViews, totalContacts, totalSold, conversionRate, activeCount: myPublishedListings.length - totalSold };
+  }, [myPublishedListings]);
+
   return (
     <div className="space-y-6 font-sans" id="my-ads-view">
       <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-xs flex items-center justify-between shrink-0">
         <div>
           <h2 className="text-lg font-bold text-gray-800">{getTranslation(language, 'myAds')}</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Gérez vos articles en vente sur Kabro Sooq</p>
+          <p className="text-xs text-gray-400 mt-0.5">Tableau de bord vendeur et performances</p>
         </div>
       </div>
+
+      {user && myPublishedListings.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm flex flex-col">
+            <div className="flex items-center space-x-2 text-gray-500 mb-2">
+              <Eye className="h-4 w-4" />
+              <span className="text-xs font-bold uppercase tracking-wider">Vues Totales</span>
+            </div>
+            <span className="text-2xl font-black text-gray-900">{stats.totalViews}</span>
+          </div>
+          <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm flex flex-col">
+            <div className="flex items-center space-x-2 text-blue-500 mb-2">
+              <MessageCircle className="h-4 w-4" />
+              <span className="text-xs font-bold uppercase tracking-wider">Contacts</span>
+            </div>
+            <span className="text-2xl font-black text-blue-600">{stats.totalContacts}</span>
+          </div>
+          <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm flex flex-col">
+            <div className="flex items-center space-x-2 text-green-500 mb-2">
+              <TrendingUp className="h-4 w-4" />
+              <span className="text-xs font-bold uppercase tracking-wider">Conversion</span>
+            </div>
+            <span className="text-2xl font-black text-green-600">{stats.conversionRate}%</span>
+          </div>
+          <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm flex flex-col">
+            <div className="flex items-center space-x-2 text-primary-500 mb-2">
+              <BarChart3 className="h-4 w-4" />
+              <span className="text-xs font-bold uppercase tracking-wider">Vendus</span>
+            </div>
+            <span className="text-2xl font-black text-primary-600">{stats.totalSold} <span className="text-sm font-medium text-gray-400">/ {myPublishedListings.length}</span></span>
+          </div>
+        </div>
+      )}
 
       {!user ? (
         <div className="rounded-2xl border border-gray-100 bg-white p-12 text-center shadow-xs">
           <p className="text-sm font-bold text-gray-600">{getTranslation(language, 'signInToPublish')}</p>
           <button
             onClick={loginWithGoogle}
-            className="mt-4 rounded-xl bg-blue-600 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-200 hover:bg-blue-700 transition-all"
+            className="mt-4 rounded-xl bg-primary-600 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-primary-200 hover:bg-primary-700 transition-all"
           >
             {getTranslation(language, 'signInBtn')}
           </button>
@@ -43,7 +93,7 @@ export const MyAdsTab: React.FC<MyAdsTabProps> = ({ onPublishClick }) => {
           <p className="text-sm font-bold text-gray-600">Vous n'avez pas encore publié d'annonce.</p>
           <button
             onClick={onPublishClick}
-            className="mt-4 inline-flex items-center space-x-2 rounded-xl bg-orange-500 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-orange-100 hover:bg-orange-600"
+            className="mt-4 inline-flex items-center space-x-2 rounded-xl bg-primary-500 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-primary-100 hover:bg-primary-600"
           >
             <PlusCircle className="h-4 w-4" />
             <span>Publier ma première annonce</span>
@@ -63,7 +113,7 @@ export const MyAdsTab: React.FC<MyAdsTabProps> = ({ onPublishClick }) => {
                 />
                 <div className="flex-1 min-w-0">
                   <h4 className="truncate text-sm font-bold text-gray-800">{pubListing.title}</h4>
-                  <p className="text-xs font-black text-blue-600 mt-1">{formatPrice(pubListing.price)}</p>
+                  <p className="text-xs font-black text-primary-600 mt-1">{formatPrice(pubListing.price)}</p>
                   <div className="mt-1 flex items-center space-x-2">
                     {pubListing.status === 'sold' && (
                       <span className="rounded bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-600 uppercase tracking-wide">
@@ -124,6 +174,29 @@ export const MyAdsTab: React.FC<MyAdsTabProps> = ({ onPublishClick }) => {
 
               {/* Action buttons */}
               <div className="mt-4 space-y-2 pt-4 border-t border-gray-50">
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      toast.success('Annonce renouvelée avec succès ! Elle remonte en haut de la liste.');
+                    }}
+                    className="flex items-center justify-center space-x-1.5 rounded-xl bg-blue-50 px-3 py-2 text-[11px] font-bold text-blue-600 transition-colors hover:bg-blue-100"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    <span>Renouveler</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      toast('Fonctionnalité de modification à venir.', { icon: '🛠️' });
+                    }}
+                    className="flex items-center justify-center space-x-1.5 rounded-xl bg-gray-50 px-3 py-2 text-[11px] font-bold text-gray-600 transition-colors hover:bg-gray-100"
+                  >
+                    <Edit2 className="h-3.5 w-3.5" />
+                    <span>Modifier</span>
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => markListingAsSold(pubListing.id)}

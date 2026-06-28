@@ -1,6 +1,6 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
-import { initializeApp, getApp, getApps } from 'firebase-admin/app';
+import { initializeApp, getApp, getApps, applicationDefault } from 'firebase-admin/app';
 import fs from 'fs';
 import path from 'path';
 
@@ -12,6 +12,7 @@ function getAdminApp() {
   const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
   const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
   return initializeApp({
+    credential: applicationDefault(),
     projectId: firebaseConfig.projectId,
     storageBucket: firebaseConfig.storageBucket,
   });
