@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 import { CategoryType, CityType, ConditionType, isCategoryType, isCityType, isConditionType } from '../types';
 import { loginWithGoogle, uploadListingImage } from '../lib/firebase';
 import { motion, AnimatePresence } from 'motion/react';
+import { AppRoutes } from '../router';
 
 interface ImageItem {
   id: string;
@@ -234,7 +235,7 @@ export const PublishPage: React.FC = () => {
         isPremium
       });
       toast.success(getTranslation(language, 'publishSuccess'));
-      navigate('/');
+      navigate(AppRoutes.HOME);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Une erreur s'est produite lors de la publication.";
       setError(msg);
@@ -286,7 +287,7 @@ export const PublishPage: React.FC = () => {
             Se connecter avec Google
           </button>
           <button 
-            onClick={() => navigate('/')}
+            onClick={() => navigate(AppRoutes.HOME)}
             className="mt-4 text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors"
           >
             Retour à l'accueil

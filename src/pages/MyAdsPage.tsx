@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MyAdsTab } from '../components/MyAdsTab';
 import { motion } from 'motion/react';
+import { AppRoutes } from '../router';
 
 export const MyAdsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -14,7 +15,7 @@ export const MyAdsPage: React.FC = () => {
       transition={{ duration: 0.3 }}
     >
       <MyAdsTab 
-        onPublishClick={() => navigate('/publish')} 
+        onPublishClick={() => navigate(AppRoutes.POST_AD)} 
       />
     </motion.div>
   );

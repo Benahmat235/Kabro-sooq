@@ -156,7 +156,7 @@ export const ReportQueue: React.FC = () => {
                   <button
                     onClick={() => {
                       if (confirm("Voulez-vous rejeter ce signalement et classer l'affaire sans suite ?")) {
-                        resolveReport(rep.id, rep.listingId, 'dismiss');
+                        resolveReport(rep.id, rep.listingId || rep.adId || '', 'dismiss');
                       }
                     }}
                     className="flex items-center space-x-1 rounded-xl border border-gray-150 bg-white hover:bg-gray-50 text-gray-500 px-3 py-1.5 text-xs font-bold transition-all"
@@ -167,7 +167,7 @@ export const ReportQueue: React.FC = () => {
                   <button
                     onClick={() => {
                       if (confirm("ATTENTION: Voulez-vous suspendre l'annonce ? Elle sera immédiatement archivée et retirée de la place de marché.")) {
-                        resolveReport(rep.id, rep.listingId, 'archive');
+                        resolveReport(rep.id, rep.listingId || rep.adId || '', 'archive');
                       }
                     }}
                     className="flex items-center space-x-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-1.5 text-xs font-bold shadow-xs shadow-rose-100 transition-all"

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { getTranslation } from '../utils/translations';
 import { toast } from 'react-hot-toast';
+import { AppRoutes } from '../router';
 
 export const SellerProfilePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -172,7 +173,7 @@ export const SellerProfilePage: React.FC = () => {
                 {sellerActiveListings.map(listing => (
                   <div 
                     key={listing.id}
-                    onClick={() => navigate(`/listing/${listing.id}`)}
+                    onClick={() => navigate(AppRoutes.AD_DETAIL.replace(':id', listing.id))}
                     className="cursor-pointer group bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-xl hover:shadow-primary-900/5 transition-all duration-300 flex flex-col"
                   >
                     <div className="relative aspect-video bg-gray-100 overflow-hidden">

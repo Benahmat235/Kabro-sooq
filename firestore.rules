@@ -1,79 +1,239 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Connection testing
-    match /test/{document} {
-      allow read, write: if true;
+    // ---------------------------------------------------------
+    // GLOBAL HELPERS
+    // ---------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // USERS COLLECTION
+    // ---------------------------------------------------------
+    // VALIDATION BLUEPRINTS
+    // ---------------------------------------------------------
+    function isValidUser(data) {
+      return data.uid == request.auth.uid
+        && data.displayName is string && data.displayName.size() <= 100
+        && data.phoneNumber is string && data.phoneNumber.size() <= 20
+        && data.city is string && data.city.size() <= 100
+        && data.isVerified is bool
+        && data.isPremium is bool
+        && data.rating is number
+        && data.totalRatings is number
+        && data.createdAt is timestamp
+        && data.lastSeen is timestamp;
+    }
+
+    function isValidAd(data) {
+      return data.sellerId == request.auth.uid
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 150
+        && data.description is string && data.description.size() <= 5000
+        && data.price is number && data.price >= 0
+        && data.city is string
+        && data.category is string
+        && data.images is list && data.images.size() <= 10
+        && data.status in ['draft', 'pending', 'active', 'sold', 'expired']
+        && data.isFeatured is bool
+        && data.viewCount is number
+        && data.contactCount is number
+        && data.expiresAt is timestamp
+        && data.createdAt is timestamp;
+    }
+
+    function isValidConversation(data) {
+      return data.adId is string
+        && data.buyerId is string
+        && data.sellerId is string
+        && (data.buyerId == request.auth.uid || data.sellerId == request.auth.uid)
+        && data.lastMessage is string
+        && data.updatedAt is timestamp
+        && data.unreadBuyer is number
+        && data.unreadSeller is number;
+    }
+
+    function isValidMessage(data) {
+      return data.senderId == request.auth.uid
+        && data.text is string && data.text.size() > 0 && data.text.size() <= 1000
+        && data.createdAt is timestamp
+        && data.isRead is bool;
+    }
+
+    function isValidFavorite(data) {
+      return data.userId == request.auth.uid
+        && data.adId is string
+        && data.addedAt is timestamp;
+    }
+
+    function isValidReport(data) {
+      return data.reporterId == request.auth.uid
+        && data.adId is string
+        && data.reason is string && data.reason.size() <= 100
+        && data.details is string && data.details.size() <= 1000
+        && data.status == 'pending'
+        && data.createdAt is timestamp;
+    }
+
+    function isValidReview(data) {
+      return data.reviewerId == request.auth.uid
+        && data.sellerId is string
+        && data.adId is string
+        && data.rating is number && data.rating >= 1 && data.rating <= 5
+        && data.comment is string && data.comment.size() <= 1000
+        && data.createdAt is timestamp;
+    }
+
+    // ---------------------------------------------------------
+    // RULES
+    // ---------------------------------------------------------
+    
+    // Fallback: Deny all by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read: if true;
+      allow create: if isOwner(userId)
+                    && isValidId(userId)
+                    && isValidUser(incoming())
+                    && incoming().keys().hasAll(['uid', 'displayName', 'phoneNumber', 'city', 'isVerified', 'isPremium', 'rating', 'totalRatings', 'createdAt', 'lastSeen'])
+                    && incoming().createdAt == request.time
+                    && incoming().isVerified == false
+                    && incoming().isPremium == false
+                    && incoming().rating == 0
+                    && incoming().totalRatings == 0;
+                    
+      allow update: if isOwner(userId)
+                    && isValidUser(incoming())
+                    && incoming().uid == existing().uid
+                    && incoming().createdAt == existing().createdAt
+                    // Users cannot self-modify verified, premium, or ratings
+                    && incoming().isVerified == existing().isVerified
+                    && incoming().isPremium == existing().isPremium
+                    && incoming().rating == existing().rating
+                    && incoming().totalRatings == existing().totalRatings;
     }
 
-    // LISTINGS COLLECTION
-    match /listings/{listingId} {
-      allow read, list: if true;
-      // Ensure listing can only be created by its declared seller
-      allow create: if request.auth != null 
-        && request.resource.data.sellerId == request.auth.uid;
-      // Ensure listing can only be updated/deleted by its seller, and sellerId cannot be spoofed/changed
-      allow update: if request.auth != null 
-        && resource.data.sellerId == request.auth.uid 
-        && request.resource.data.sellerId == request.auth.uid;
-      allow delete: if request.auth != null 
-        && resource.data.sellerId == request.auth.uid;
+    match /ads/{adId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+                    && isValidId(adId)
+                    && isValidAd(incoming())
+                    && incoming().keys().hasAll(['title', 'description', 'price', 'city', 'category', 'images', 'status', 'sellerId', 'isFeatured', 'viewCount', 'contactCount', 'expiresAt', 'createdAt'])
+                    && incoming().createdAt == request.time
+                    && incoming().viewCount == 0
+                    && incoming().contactCount == 0
+                    && incoming().isFeatured == false;
+
+      allow update: if isOwner(existing().sellerId)
+                    && isValidAd(incoming())
+                    && incoming().sellerId == existing().sellerId
+                    && incoming().createdAt == existing().createdAt
+                    // Only server can update view/contact counts and featured status
+                    && incoming().viewCount == existing().viewCount
+                    && incoming().contactCount == existing().contactCount
+                    && incoming().isFeatured == existing().isFeatured;
+                    
+      allow delete: if isOwner(existing().sellerId);
     }
 
-    // CHATS COLLECTION
-    match /chats/{chatId} {
-      allow get, list, update: if request.auth != null && 
-        resource.data.participantIds.hasAny([request.auth.uid]);
-      allow create: if request.auth != null && 
-        request.resource.data.participantIds.hasAny([request.auth.uid]);
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if false; // Admin/Server only
+    }
 
-      // MESSAGES SUBCOLLECTION
-      match /messages/{messageId} {
-        allow get, list: if request.auth != null && 
-          get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds.hasAny([request.auth.uid]);
-        allow create: if request.auth != null && 
-          get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds.hasAny([request.auth.uid]) &&
-          request.resource.data.senderId == request.auth.uid;
-        allow update: if request.auth != null && 
-          get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds.hasAny([request.auth.uid]) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seen']);
-        allow delete: if false;
+    match /cities/{cityId} {
+      allow read: if true;
+      allow write: if false; // Admin/Server only
+    }
+
+    match /conversations/{conversationId} {
+      allow read: if isSignedIn() && (existing().buyerId == request.auth.uid || existing().sellerId == request.auth.uid);
+      
+      allow create: if isSignedIn()
+                    && isValidId(conversationId)
+                    && isValidConversation(incoming())
+                    && incoming().keys().hasAll(['adId', 'buyerId', 'sellerId', 'lastMessage', 'updatedAt', 'unreadBuyer', 'unreadSeller'])
+                    && incoming().updatedAt == request.time;
+                    
+      allow update: if isSignedIn()
+                    && (existing().buyerId == request.auth.uid || existing().sellerId == request.auth.uid)
+                    && isValidConversation(incoming())
+                    && incoming().adId == existing().adId
+                    && incoming().buyerId == existing().buyerId
+                    && incoming().sellerId == existing().sellerId;
+    }
+
+    match /conversations/{conversationId}/messages/{messageId} {
+      function isConversationParticipant() {
+        let conv = get(/databases/$(database)/documents/conversations/$(conversationId)).data;
+        return conv.buyerId == request.auth.uid || conv.sellerId == request.auth.uid;
       }
+
+      allow read: if isSignedIn() && isConversationParticipant();
+      allow create: if isSignedIn()
+                    && isValidId(messageId)
+                    && isConversationParticipant()
+                    && isValidMessage(incoming())
+                    && incoming().keys().hasAll(['senderId', 'text', 'createdAt', 'isRead'])
+                    && incoming().createdAt == request.time
+                    && incoming().isRead == false;
+                    
+      allow update: if isSignedIn()
+                    && isConversationParticipant()
+                    && isValidMessage(incoming())
+                    && incoming().senderId == existing().senderId
+                    && incoming().text == existing().text
+                    && incoming().createdAt == existing().createdAt
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
     }
 
-    // REVIEWS COLLECTION
-    match /reviews/{reviewId} {
-      allow read, list: if true;
-      allow create: if request.auth != null 
-        && request.resource.data.buyerId == request.auth.uid
-        && request.resource.data.rating >= 1 
-        && request.resource.data.rating <= 5
-        && request.resource.data.comment is string
-        && request.resource.data.comment.size() <= 1000;
-      allow update, delete: if false;
+    match /favorites/{favoriteId} {
+      allow read: if isOwner(existing().userId);
+      allow create: if isSignedIn()
+                    && isValidId(favoriteId)
+                    && isValidFavorite(incoming())
+                    && incoming().keys().hasAll(['userId', 'adId', 'addedAt'])
+                    && incoming().addedAt == request.time;
+      allow delete: if isOwner(existing().userId);
     }
 
-    // REPORTS COLLECTION
     match /reports/{reportId} {
-      allow read, list, update: if request.auth != null;
-      allow create: if request.auth != null
-        && request.resource.data.reporterId == request.auth.uid
-        && request.resource.data.status == 'pending'
-        && request.resource.data.comment is string
-        && request.resource.data.comment.size() <= 2000;
-      allow delete: if request.auth != null;
+      allow read: if isOwner(existing().reporterId); // user can view their own reports
+      allow create: if isSignedIn()
+                    && isValidId(reportId)
+                    && isValidReport(incoming())
+                    && incoming().keys().hasAll(['adId', 'reporterId', 'reason', 'details', 'status', 'createdAt'])
+                    && incoming().createdAt == request.time;
+      allow update, delete: if false; // Once submitted, only admin can manage
     }
 
-    // BACKUP HISTORY COLLECTION
-    match /backup_history/{historyId} {
-      allow read, list, write: if request.auth != null;
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+                    && isValidId(reviewId)
+                    && isValidReview(incoming())
+                    && incoming().keys().hasAll(['reviewerId', 'sellerId', 'adId', 'rating', 'comment', 'createdAt'])
+                    && incoming().createdAt == request.time;
+      allow update: if isOwner(existing().reviewerId)
+                    && isValidReview(incoming())
+                    && incoming().reviewerId == existing().reviewerId
+                    && incoming().sellerId == existing().sellerId
+                    && incoming().adId == existing().adId
+                    && incoming().createdAt == existing().createdAt;
+      allow delete: if isOwner(existing().reviewerId);
     }
   }
 }

@@ -12,6 +12,7 @@ import {
 import { ImageCarousel } from '../components/ImageCarousel';
 import { ShareModal } from '../components/ShareModal';
 import { ReportListingButton } from '../components/ReportListingButton';
+import { AppRoutes } from '../router';
 
 export const ListingDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -48,7 +49,7 @@ export const ListingDetailPage: React.FC = () => {
         <h4 className="text-sm font-bold text-gray-800">Annonce non trouvée</h4>
         <p className="text-xs text-gray-400 mt-2">Cette annonce est peut-être expirée ou a été supprimée par le vendeur.</p>
         <button 
-          onClick={() => navigate('/')}
+          onClick={() => navigate(AppRoutes.HOME)}
           className="mt-6 rounded-xl bg-primary-600 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-primary-200 hover:bg-primary-700 transition-all"
         >
           Retour à l'accueil
@@ -87,7 +88,7 @@ export const ListingDetailPage: React.FC = () => {
     try {
       await startNewChat(listing);
       // After starting a chat, redirect to messages page
-      navigate('/messages');
+      navigate(AppRoutes.MESSAGES);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Erreur lors de l'ouverture du chat.";
       toast.error(errorMessage);
@@ -135,14 +136,14 @@ export const ListingDetailPage: React.FC = () => {
       {/* Breadcrumb & Back */}
       <div className="mb-4 flex flex-wrap items-center space-x-2 text-[11px] font-semibold text-gray-500">
         <button 
-          onClick={() => navigate('/')}
+          onClick={() => navigate(AppRoutes.HOME)}
           className="hover:text-primary-600 transition-colors"
         >
           Accueil
         </button>
         <span className="text-gray-300">/</span>
         <button 
-          onClick={() => navigate(`/?category=${encodeURIComponent(listing.category)}`)}
+          onClick={() => navigate(AppRoutes.CATEGORY.replace(':slug', encodeURIComponent(listing.category)))}
           className="hover:text-primary-600 transition-colors"
         >
           {listing.category}
@@ -298,7 +299,7 @@ export const ListingDetailPage: React.FC = () => {
               <div className="flex items-start justify-between">
                 <div 
                   className="flex items-center space-x-3.5 cursor-pointer group"
-                  onClick={() => navigate(`/seller/${listing.sellerId}`)}
+                  onClick={() => navigate(AppRoutes.PUBLIC_PROFILE.replace(':userId', listing.sellerId))}
                 >
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary-600 text-white text-sm font-bold shrink-0 shadow-md shadow-primary-100 group-hover:scale-105 transition-transform">
                     {listing.sellerName.slice(0, 2).toUpperCase()}
@@ -307,7 +308,9 @@ export const ListingDetailPage: React.FC = () => {
                     <div className="flex items-center space-x-1.5 group-hover:text-primary-600 transition-colors">
                       <span className="font-bold text-gray-800 text-sm leading-none group-hover:text-primary-600">{listing.sellerName}</span>
                       {listing.sellerIsVerified && (
-                        <CheckCircle2 className="h-4 w-4 fill-primary-600 text-white" title="Identité Vérifiée" />
+                        <span title="Identité Vérifiée">
+                          <CheckCircle2 className="h-4 w-4 fill-primary-600 text-white" />
+                        </span>
                       )}
                       {(() => {
                         const sellerReviews = reviews.filter(r => r.sellerId === listing.sellerId);
@@ -357,7 +360,7 @@ export const ListingDetailPage: React.FC = () => {
                 {/* Buttons block */}
                 <div className="flex flex-col items-end space-y-2">
                   <button 
-                    onClick={() => navigate(`/seller/${listing.sellerId}`)}
+                    onClick={() => navigate(AppRoutes.PUBLIC_PROFILE.replace(':userId', listing.sellerId))}
                     className="flex items-center justify-center space-x-1.5 text-[11px] font-bold text-gray-600 hover:text-primary-600 bg-white border border-gray-200 px-3 py-1.5 rounded-lg shadow-3xs transition-colors w-full sm:w-auto"
                   >
                     <User className="h-3.5 w-3.5" />
@@ -494,7 +497,7 @@ export const ListingDetailPage: React.FC = () => {
                 <div 
                   key={simListing.id} 
                   onClick={() => {
-                    navigate(`/listing/${simListing.id}`);
+                    navigate(AppRoutes.AD_DETAIL.replace(':id', simListing.id));
                   }}
                   className="cursor-pointer group bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-xl hover:shadow-primary-900/5 transition-all duration-300 flex flex-col"
                 >

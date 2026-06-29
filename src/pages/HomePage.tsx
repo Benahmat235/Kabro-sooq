@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { HomeTab } from '../components/HomeTab';
 import { Listing } from '../types';
 import { motion } from 'motion/react';
+import { AppRoutes } from '../router';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
 
   const handleQuickView = useCallback((listing: Listing) => {
-    navigate(`/listing/${listing.id}`);
+    navigate(AppRoutes.AD_DETAIL.replace(':id', listing.id));
   }, [navigate]);
 
   return (

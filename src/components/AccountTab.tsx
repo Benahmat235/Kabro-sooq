@@ -7,6 +7,8 @@ import { MfaSettings } from './MfaSettings';
 import { BackupManager } from './BackupManager';
 import { ReportQueue } from './ReportQueue';
 import { Palette, Check } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { AppRoutes } from '../router';
 
 export const AccountTab: React.FC = () => {
   const { language, user, listings, savedListings, followedSellers, theme, setTheme, reviews, loyaltyPoints } = useApp();
@@ -56,13 +58,13 @@ export const AccountTab: React.FC = () => {
             <h3 className="text-base font-black text-gray-800 mt-3">{user.displayName}</h3>
             <p className="text-[10px] text-gray-400 font-mono tracking-wide mt-1 uppercase mb-4">MEMBRE DEPUIS 2026</p>
             
-            <a 
-              href={`/seller/${user.uid}`}
+            <Link 
+              to={AppRoutes.PUBLIC_PROFILE.replace(':userId', user.uid)}
               className="flex items-center space-x-1.5 text-xs font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 px-4 py-2 rounded-xl transition-colors"
             >
               <User className="h-4 w-4" />
               <span>Voir mon profil public</span>
-            </a>
+            </Link>
           </div>
 
           {/* Profile metadata metrics */}

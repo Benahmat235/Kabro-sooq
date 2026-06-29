@@ -1,296 +1,162 @@
 {
   "entities": {
-    "userProfile": {
-      "title": "UserProfile",
-      "description": "User profile data stored in Firestore",
+    "User": {
+      "title": "User",
+      "description": "A user profile in the system.",
       "type": "object",
       "properties": {
-        "uid": {
-          "type": "string",
-          "description": "Unique user ID from Firebase Auth"
-        },
-        "name": {
-          "type": "string",
-          "description": "Display name of the user"
-        },
-        "email": {
-          "type": "string",
-          "description": "Email address of the user"
-        },
-        "avatarUrl": {
-          "type": "string",
-          "description": "URL of user avatar"
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Creation timestamp"
-        },
-        "fcmTokens": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Firebase Cloud Messaging registration tokens for real-time notifications"
-        },
-        "mfaEnabled": {
-          "type": "boolean",
-          "description": "Whether Multi-factor authentication is enabled"
-        },
-        "mfaPhone": {
-          "type": "string",
-          "description": "Enrolled MFA phone number"
-        }
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "phone": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "loyaltyPoints": { "type": "number" }
       },
       "required": ["uid", "name", "email", "createdAt"]
     },
-    "listing": {
-      "title": "Listing",
-      "description": "Classified advertisement listing details",
+    "Ad": {
+      "title": "Ad",
+      "description": "An advertisement listing.",
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "price": {
-          "type": "number"
-        },
-        "category": {
-          "type": "string",
-          "enum": ["Véhicules", "Immobilier", "Téléphones", "Emploi", "Services", "Animaux"]
-        },
-        "city": {
-          "type": "string",
-          "enum": ["N'Djaména", "Moundou", "Sarh", "Abéché", "Kélo", "Am Timan", "Doba", "Pala"]
-        },
-        "images": {
-          "type": "array",
-          "description": "List of image URLs"
-        },
-        "condition": {
-          "type": "string",
-          "enum": ["new", "excellent", "good", "used"]
-        },
-        "sellerId": {
-          "type": "string"
-        },
-        "sellerName": {
-          "type": "string"
-        },
-        "sellerPhone": {
-          "type": "string"
-        },
-        "sellerWhatsApp": {
-          "type": "string"
-        },
-        "sellerIsVerified": {
-          "type": "boolean"
-        },
-        "sellerResponseTime": {
-          "type": "string"
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "status": {
-          "type": "string",
-          "enum": ["active", "sold", "archived", "out_of_stock"]
-        },
-        "viewsCount": {
-          "type": "number"
-        },
-        "quantity": {
-          "type": "number",
-          "description": "Available quantity of the product"
-        }
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "categoryId": { "type": "string" },
+        "subcategoryId": { "type": "string" },
+        "cityId": { "type": "string" },
+        "images": { "type": "array" },
+        "condition": { "type": "string", "enum": ["new", "excellent", "good", "used"] },
+        "sellerId": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "sold", "archived", "out_of_stock"] },
+        "viewsCount": { "type": "number" },
+        "isPremium": { "type": "boolean" }
       },
-      "required": ["id", "title", "description", "price", "category", "city", "sellerId", "sellerName", "createdAt", "status"]
+      "required": ["id", "title", "description", "price", "categoryId", "cityId", "images", "condition", "sellerId", "createdAt", "updatedAt", "status", "viewsCount"]
     },
-    "chat": {
-      "title": "Chat",
-      "description": "Chat metadata representing a conversation",
+    "Category": {
+      "title": "Category",
+      "description": "A category for ads.",
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
-        "listingId": {
-          "type": "string"
-        },
-        "listingTitle": {
-          "type": "string"
-        },
-        "listingPrice": {
-          "type": "number"
-        },
-        "listingImage": {
-          "type": "string"
-        },
-        "buyerId": {
-          "type": "string"
-        },
-        "buyerName": {
-          "type": "string"
-        },
-        "sellerId": {
-          "type": "string"
-        },
-        "sellerName": {
-          "type": "string"
-        },
-        "lastMessage": {
-          "type": "string"
-        },
-        "lastMessageAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "participantIds": {
-          "type": "array"
-        }
+        "id": { "type": "string" },
+        "slug": { "type": "string" },
+        "name": { "type": "string" },
+        "icon": { "type": "string" },
+        "order": { "type": "number" },
+        "subcategories": { "type": "array" }
       },
-      "required": ["id", "listingId", "buyerId", "sellerId", "participantIds"]
+      "required": ["id", "slug", "name", "order"]
     },
-    "message": {
+    "City": {
+      "title": "City",
+      "description": "A city or region.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "slug": { "type": "string" },
+        "name": { "type": "string" },
+        "region": { "type": "string" }
+      },
+      "required": ["id", "slug", "name"]
+    },
+    "Message": {
       "title": "Message",
-      "description": "Individual message inside a chat",
+      "description": "A chat message.",
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
-        "senderId": {
-          "type": "string"
-        },
-        "text": {
-          "type": "string"
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "chatId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "text": { "type": "string" },
+        "adId": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "seen": { "type": "boolean" }
       },
-      "required": ["id", "senderId", "text", "createdAt"]
+      "required": ["id", "chatId", "senderId", "receiverId", "text", "adId", "createdAt", "seen"]
     },
-    "review": {
-      "title": "Review",
-      "description": "A rating and feedback review left on a seller by a buyer",
+    "Favorite": {
+      "title": "Favorite",
+      "description": "A user's favorite ad.",
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
-        "sellerId": {
-          "type": "string"
-        },
-        "sellerName": {
-          "type": "string"
-        },
-        "buyerId": {
-          "type": "string"
-        },
-        "buyerName": {
-          "type": "string"
-        },
-        "buyerAvatarUrl": {
-          "type": "string"
-        },
-        "rating": {
-          "type": "number",
-          "description": "Rating score between 1 and 5"
-        },
-        "comment": {
-          "type": "string"
-        },
-        "listingId": {
-          "type": "string"
-        },
-        "listingTitle": {
-          "type": "string"
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "adId": { "type": "string" },
+        "createdAt": { "type": "number" }
       },
-      "required": ["id", "sellerId", "buyerId", "buyerName", "rating", "comment", "listingId", "listingTitle", "createdAt"]
+      "required": ["id", "userId", "adId", "createdAt"]
     },
-    "report": {
+    "Report": {
       "title": "Report",
-      "description": "A fraud or suspect ad report submitted by a user",
+      "description": "A report against an ad or seller.",
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
-        "listingId": {
-          "type": "string"
-        },
-        "listingTitle": {
-          "type": "string"
-        },
-        "listingSellerId": {
-          "type": "string"
-        },
-        "listingSellerName": {
-          "type": "string"
-        },
-        "reporterId": {
-          "type": "string"
-        },
-        "reporterName": {
-          "type": "string"
-        },
-        "reason": {
-          "type": "string",
-          "enum": ["fraud", "counterfeit", "inappropriate", "wrong_price", "other"]
-        },
-        "comment": {
-          "type": "string"
-        },
-        "status": {
-          "type": "string",
-          "enum": ["pending", "resolved", "dismissed"]
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "reporterId": { "type": "string" },
+        "adId": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "reason": { "type": "string", "enum": ["fraud", "counterfeit", "inappropriate", "wrong_price", "other"] },
+        "comment": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "resolved", "dismissed"] },
+        "createdAt": { "type": "number" }
       },
-      "required": ["id", "listingId", "listingTitle", "listingSellerId", "listingSellerName", "reporterId", "reporterName", "reason", "comment", "status", "createdAt"]
+      "required": ["id", "reporterId", "reason", "comment", "status", "createdAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "A review of a seller.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reviewerId": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "adId": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "reviewerId", "sellerId", "adId", "rating", "comment", "createdAt"]
     }
   },
   "firestore": {
-    "/users/{userId}": {
-      "schema": "userProfile",
-      "description": "User profiles"
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles."
     },
-    "/listings/{listingId}": {
-      "schema": "listing",
-      "description": "Classified ad listings"
+    "ads/{adId}": {
+      "schema": { "$ref": "#/entities/Ad" },
+      "description": "Advertisement listings."
     },
-    "/chats/{chatId}": {
-      "schema": "chat",
-      "description": "Chats"
+    "categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Categories for ads."
     },
-    "/chats/{chatId}/messages/{messageId}": {
-      "schema": "message",
-      "description": "Messages inside a chat"
+    "cities/{cityId}": {
+      "schema": { "$ref": "#/entities/City" },
+      "description": "Cities and regions."
     },
-    "/reviews/{reviewId}": {
-      "schema": "review",
-      "description": "Seller reviews and ratings"
+    "messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Chat messages."
     },
-    "/reports/{reportId}": {
-      "schema": "report",
-      "description": "Suspect listing fraud reports"
+    "favorites/{favoriteId}": {
+      "schema": { "$ref": "#/entities/Favorite" },
+      "description": "User favorite ads."
+    },
+    "reports/{reportId}": {
+      "schema": { "$ref": "#/entities/Report" },
+      "description": "Reports against ads or sellers."
+    },
+    "reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/Review" },
+      "description": "Reviews of sellers."
     }
   }
 }

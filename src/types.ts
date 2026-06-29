@@ -1,14 +1,11 @@
 import tchadData from './data/tchadData.json';
 
-export type CategoryType = string;
-
-export type CityType = string;
-
 export type ConditionType = "new" | "excellent" | "good" | "used";
-
-export type ListingStatusType = "active" | "sold" | "archived" | "out_of_stock";
-
+export type AdStatusType = "active" | "sold" | "archived" | "out_of_stock";
+export type CategoryType = string;
+export type CityType = string;
 export type LanguageType = "FR" | "AR" | "EN";
+export type ListingStatusType = "active" | "sold" | "archived" | "out_of_stock";
 
 export interface Listing {
   id: string;
@@ -28,13 +25,13 @@ export interface Listing {
   sellerWhatsApp: string;
   sellerIsVerified: boolean;
   sellerResponseTime: string;
-  createdAt: string; // Timestamp or string
+  createdAt: string;
   status: ListingStatusType;
   viewsCount: number;
   contactCount?: number;
   renewedAt?: string;
   quantity?: number;
-  isPremium?: boolean; // Added for boosted listings
+  isPremium?: boolean;
 }
 
 export interface UserProfile {
@@ -87,52 +84,124 @@ export interface Chat {
   archivedBy?: string[];
 }
 
-export interface Message {
-  id: string;
-  senderId: string;
-  text: string;
-  imageUrl?: string;
-  attachmentUrl?: string;
-  attachmentName?: string;
-  attachmentType?: string;
-  createdAt: string;
-  seen?: boolean;
-  flagged?: boolean;
-  flaggedReason?: string;
-}
-
 export interface WeatherInfo {
   temp: number;
   condition: string;
   icon: string;
 }
 
-export interface Review {
+// ---------------------------------------------------------
+// NEW FIRESTORE SCHEMA TYPES
+// ---------------------------------------------------------
+
+export interface User {
+  uid: string;
+  name: string;
+  email: string;
+  avatarUrl?: string;
+  createdAt: number;
+  phone?: string;
+  isVerified?: boolean;
+  loyaltyPoints?: number;
+}
+
+export interface Ad {
   id: string;
+  title: string;
+  description: string;
+  price: number;
+  categoryId: string;
+  subcategoryId?: string;
+  cityId: string;
+  images: string[];
+  condition: ConditionType;
   sellerId: string;
-  sellerName: string;
-  buyerId: string;
-  buyerName: string;
-  buyerAvatarUrl?: string;
-  rating: number; // 1 to 5
-  comment: string;
-  listingId: string;
-  listingTitle: string;
-  createdAt: string; // ISO datetime string
+  createdAt: number;
+  updatedAt: number;
+  status: AdStatusType;
+  viewsCount: number;
+  isPremium?: boolean;
+}
+
+export interface Category {
+  id: string;
+  slug: string;
+  name: string;
+  icon?: string;
+  order: number;
+  subcategories: {
+    slug: string;
+    name: string;
+  }[];
+}
+
+export interface City {
+  id: string;
+  slug: string;
+  name: string;
+  region?: string;
+}
+
+export interface Message {
+  id: string;
+  chatId?: string;
+  senderId: string;
+  receiverId?: string;
+  text: string;
+  adId?: string;
+  createdAt: number | string;
+  seen?: boolean;
+  
+  // Backwards compatibility properties for previous implementation
+  imageUrl?: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentType?: string;
+  flagged?: boolean;
+  flaggedReason?: string;
+}
+
+export interface Favorite {
+  id: string;
+  userId: string;
+  adId: string;
+  createdAt: number | string;
 }
 
 export interface Report {
   id: string;
-  listingId: string;
-  listingTitle: string;
-  listingSellerId: string;
-  listingSellerName: string;
   reporterId: string;
-  reporterName: string;
+  adId?: string;
+  sellerId?: string;
   reason: 'fraud' | 'counterfeit' | 'inappropriate' | 'wrong_price' | 'other';
   comment: string;
   status: 'pending' | 'resolved' | 'dismissed';
-  createdAt: string;
+  createdAt: number | string;
+
+  // Backwards compatibility
+  listingId?: string;
+  listingTitle?: string;
+  listingSellerId?: string;
+  listingSellerName?: string;
+  reporterName?: string;
+}
+
+export interface Review {
+  id: string;
+  reviewerId?: string;
+  sellerId: string;
+  adId?: string;
+  rating: number; // 1 to 5
+  comment: string;
+  createdAt: number | string;
+  
+  // Backwards compatibility
+  sellerName?: string;
+  buyerId?: string;
+  buyerName?: string;
+  buyerAvatarUrl?: string;
+  listingId?: string;
+  listingTitle?: string;
 }
 
 export const isCategoryType = (value: string): value is CategoryType => {
@@ -154,3 +223,4 @@ export const isCategoryOrAll = (value: string): value is CategoryType | 'all' =>
 export const isConditionOrAll = (value: string): value is ConditionType | 'all' => {
   return value === 'all' || isConditionType(value);
 };
+
